@@ -19,7 +19,7 @@
     "dependencies": {
         "@lucia-auth/adapter-postgresql": "^3.1.2",
         "@lucia-auth/adapter-prisma": "^4.0.1",
-        "@prisma/client": "^6.13.0",
+        "@prisma/client": "^5.22.0",
         "@supabase/supabase-js": "^2.52.1",
         "archiver": "^7.0.1",
         "cookie-parser": "^1.4.7",
@@ -46,7 +46,7 @@
         "@types/multer": "^2.0.0",
         "@types/node": "^24.0.10",
         "@types/unzipper": "^0.10.11",
-        "prisma": "^6.13.0",
+        "prisma": "^5.22.0",
         "ts-node-dev": "^2.0.0",
         "typescript": "^5.8.3"
     }
