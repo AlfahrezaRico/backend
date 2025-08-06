@@ -22,6 +22,7 @@ import { nanoid } from 'nanoid';
 import path from 'path';
 import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
+import payrollComponentsRouter from './payroll-components.js';
 
 const prisma = new PrismaClient();
 
@@ -2692,6 +2693,9 @@ app.post('/api/department-nik-configs/validate-format', async (req, res) => {
     res.status(500).json({ error: 'Gagal validasi format NIK' });
   }
 });
+
+// Payroll Components routes
+app.use(payrollComponentsRouter);
 
 app.listen(port, () => {
   console.log("Server running on port", port);
