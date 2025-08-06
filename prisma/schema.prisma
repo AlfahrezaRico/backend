@@ -182,3 +182,20 @@ model department_nik_config {
 
   @@unique([department_id])
 }
+
+model payroll_components {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(255)
+  type        String   @db.VarChar(50)
+  category    String   @db.VarChar(50)
+  percentage  Decimal  @default(0) @db.Decimal(5, 2)
+  amount      Decimal  @default(0) @db.Decimal(12, 2)
+  is_active   Boolean  @default(true)
+  description String?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([type])
+  @@index([category])
+  @@index([is_active])
+}
