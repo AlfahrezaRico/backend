@@ -797,11 +797,15 @@ app.get('/api/leave-requests', async (req, res) => {
     if (req.query.status) {
       where.status = req.query.status;
     }
-    // Selalu include employee dan approvedByUser/rejectedByUser
+    // Selalu include employee dengan departemen dan approvedByUser/rejectedByUser
     const leaveRequests = await prisma.leave_requests.findMany({ 
       where, 
       include: { 
-        employee: true, 
+        employee: {
+          include: {
+            departemen: true
+          }
+        }, 
         approvedByUser: true, 
         rejectedByUser: true 
       },
@@ -1856,7 +1860,13 @@ app.get('/api/izin-sakit', async (req, res) => {
 app.get('/api/izin-sakit-all', async (req, res) => {
   try {
     const izinList = await prisma.izin_sakit.findMany({
-      include: { employee: true },
+      include: { 
+        employee: {
+          include: {
+            departemen: true
+          }
+        }
+      },
       orderBy: { tanggal: 'desc' }
     });
     res.json(izinList);
