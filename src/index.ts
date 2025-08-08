@@ -835,11 +835,11 @@ app.get('/api/notifications/rejected-leaves', async (req, res) => {
       return res.json([]);
     }
 
-    // Fetch all leave requests (approved and rejected)
+    // Fetch only REJECTED leave requests
     const leaveRequests = await prisma.leave_requests.findMany({
       where: {
         employee_id: employee.id,
-        status: { in: ['APPROVED', 'REJECTED'] }
+        status: 'REJECTED'
       },
       include: {
         employee: true,
@@ -849,11 +849,11 @@ app.get('/api/notifications/rejected-leaves', async (req, res) => {
       orderBy: { created_at: 'desc' }
     });
 
-    // Fetch all izin_sakit requests (approved and rejected)
+    // Fetch only REJECTED izin_sakit requests
     const izinRequests = await prisma.izin_sakit.findMany({
       where: {
         employee_id: employee.id,
-        status: { in: ['APPROVED', 'REJECTED'] }
+        status: 'REJECTED'
       },
       orderBy: { created_at: 'desc' }
     });
