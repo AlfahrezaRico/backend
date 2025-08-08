@@ -23,6 +23,7 @@ import path from 'path';
 import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
 import payrollComponentsRouter from './payroll-components.js';
+import * as XLSX from 'xlsx';
 
 const prisma = new PrismaClient();
 
@@ -2701,6 +2702,176 @@ app.post('/api/department-nik-configs/validate-format', async (req, res) => {
   } catch (err) {
     console.error('Error validating NIK format:', err);
     res.status(500).json({ error: 'Gagal validasi format NIK' });
+  }
+});
+
+// Export endpoints
+app.post('/api/export/:type', async (req, res) => {
+  try {
+    const { type } = req.params;
+    const { month, filter } = req.body;
+    
+    console.log(`Export request: type=${type}, month=${month}, filter=${filter}`);
+    
+    // Validate type
+    if (!['employees', 'leave', 'attendance'].includes(type)) {
+      return res.status(400).json({ error: 'Invalid export type' });
+    }
+    
+    // Validate month format (YYYY-MM)
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+      return res.status(400).json({ error: 'Invalid month format. Use YYYY-MM' });
+    }
+    
+    let data: any[] = [];
+    let filename = '';
+    
+    switch (type) {
+      case 'employees':
+        // Export employee data
+        data = await prisma.employees.findMany({
+          include: {
+            departemen: true,
+            user: true
+          },
+          orderBy: { created_at: 'desc' }
+        });
+        
+        // Transform data for Excel
+        const employeeData = data.map(emp => ({
+          'NIK': emp.nik || '-',
+          'Nama': `${emp.first_name} ${emp.last_name}`,
+          'Email': emp.email || '-',
+          'Departemen': emp.departemen?.nama || '-',
+          'Jabatan': emp.position || '-',
+          'Tanggal Bergabung': emp.hire_date ? new Date(emp.hire_date).toLocaleDateString('id-ID') : '-',
+          'Status': 'Active', // Default status
+          'Tanggal Dibuat': emp.created_at ? new Date(emp.created_at).toLocaleDateString('id-ID') : '-'
+        }));
+        
+        data = employeeData;
+        filename = `employees_report_${month}.xlsx`;
+        break;
+        
+      case 'leave':
+        // Export leave requests for the specified month
+        const startDate = new Date(month + '-01');
+        const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
+        
+        const leaveData = await prisma.leave_requests.findMany({
+          where: {
+            created_at: {
+              gte: startDate,
+              lte: endDate
+            }
+          },
+          include: {
+            employee: {
+              include: {
+                departemen: true
+              }
+            },
+            approvedByUser: true,
+            rejectedByUser: true
+          },
+          orderBy: { created_at: 'desc' }
+        });
+        
+        // Transform data for Excel
+        const leaveReportData = leaveData.map(leave => ({
+          'NIK': leave.employee?.nik || '-',
+          'Nama': leave.employee ? `${leave.employee.first_name} ${leave.employee.last_name}` : '-',
+          'Departemen': leave.employee?.departemen?.nama || '-',
+          'Jenis Cuti': leave.leave_type || '-',
+          'Tanggal Mulai': leave.start_date ? new Date(leave.start_date).toLocaleDateString('id-ID') : '-',
+          'Tanggal Selesai': leave.end_date ? new Date(leave.end_date).toLocaleDateString('id-ID') : '-',
+          'Durasi (Hari)': leave.duration || '-',
+          'Alasan': leave.reason || '-',
+          'Status': leave.status || '-',
+          'Disetujui Oleh': leave.approvedByUser?.username || '-',
+          'Ditolak Oleh': leave.rejectedByUser?.username || '-',
+          'Tanggal Pengajuan': leave.created_at ? new Date(leave.created_at).toLocaleDateString('id-ID') : '-'
+        }));
+        
+        data = leaveReportData;
+        filename = `leave_report_${month}.xlsx`;
+        break;
+        
+      case 'attendance':
+        // Export attendance data for the specified month
+        const attendanceStartDate = new Date(month + '-01');
+        const attendanceEndDate = new Date(attendanceStartDate.getFullYear(), attendanceStartDate.getMonth() + 1, 0);
+        
+        const attendanceData = await prisma.attendance_records.findMany({
+          where: {
+            date: {
+              gte: attendanceStartDate,
+              lte: attendanceEndDate
+            }
+          },
+          include: {
+            employee: {
+              include: {
+                departemen: true
+              }
+            }
+          },
+          orderBy: { date: 'desc' }
+        });
+        
+        // Transform data for Excel
+        const attendanceReportData = attendanceData.map(att => ({
+          'NIK': att.employee?.nik || '-',
+          'Nama': att.employee ? `${att.employee.first_name} ${att.employee.last_name}` : '-',
+          'Departemen': att.employee?.departemen?.nama || '-',
+          'Tanggal': att.date ? new Date(att.date).toLocaleDateString('id-ID') : '-',
+          'Check In': att.check_in_time ? new Date(att.check_in_time).toLocaleTimeString('id-ID') : '-',
+          'Check Out': att.check_out_time ? new Date(att.check_out_time).toLocaleTimeString('id-ID') : '-',
+          'Status': att.status || '-',
+          'Notes': att.notes || '-'
+        }));
+        
+        data = attendanceReportData;
+        filename = `attendance_report_${month}.xlsx`;
+        break;
+    }
+    
+    // Create Excel file using XLSX library
+    if (data.length > 0) {
+      // Create workbook and worksheet
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Report');
+      
+      // Generate Excel buffer
+      const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      
+      // Set response headers for Excel file download
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', excelBuffer.length);
+      
+      res.send(excelBuffer);
+    } else {
+      // If no data, create empty Excel file
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet([{ 'No Data': 'Tidak ada data untuk periode ini' }]);
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Report');
+      
+      const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', excelBuffer.length);
+      
+      res.send(excelBuffer);
+    }
+    
+  } catch (error) {
+    console.error('Export error:', error);
+    res.status(500).json({ error: 'Gagal export laporan' });
   }
 });
 
