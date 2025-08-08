@@ -1715,15 +1715,33 @@ app.get('/api/payrolls/:id', async (req, res) => {
 
 // CREATE payroll
 app.post('/api/payrolls', async (req, res) => {
-  const parseResult = payrollSchema.safeParse(req.body);
-  if (!parseResult.success) {
-    return res.status(400).json({ error: 'Data payroll tidak valid', details: parseResult.error.errors });
-  }
   try {
-    const data = parseResult.data;
-    const payroll = await prisma.payrolls.create({ data });
+    const { employee_id, pay_period_start, pay_period_end, gross_salary, deductions, net_salary, payment_date, status } = req.body;
+    
+    // Validate required fields
+    if (!employee_id || !pay_period_start || !pay_period_end || !gross_salary || !net_salary) {
+      return res.status(400).json({ error: 'Data payroll tidak lengkap' });
+    }
+
+    const data = {
+      employee_id,
+      pay_period_start: new Date(pay_period_start),
+      pay_period_end: new Date(pay_period_end),
+      gross_salary: parseFloat(gross_salary),
+      deductions: parseFloat(deductions || 0),
+      net_salary: parseFloat(net_salary),
+      payment_date: payment_date ? new Date(payment_date) : null,
+      status: status || 'PENDING'
+    };
+
+    const payroll = await prisma.payrolls.create({ 
+      data,
+      include: { employee: true }
+    });
+    
     res.status(201).json(payroll);
   } catch (err) {
+    console.error('Error creating payroll:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
