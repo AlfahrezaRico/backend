@@ -2778,20 +2778,32 @@ app.post('/api/export/:type', async (req, res) => {
         });
         
         // Transform data for Excel
-        const leaveReportData = leaveData.map(leave => ({
-          'NIK': leave.employee?.nik || '-',
-          'Nama': leave.employee ? `${leave.employee.first_name} ${leave.employee.last_name}` : '-',
-          'Departemen': leave.employee?.departemen?.nama || '-',
-          'Jenis Cuti': leave.leave_type || '-',
-          'Tanggal Mulai': leave.start_date ? new Date(leave.start_date).toLocaleDateString('id-ID') : '-',
-          'Tanggal Selesai': leave.end_date ? new Date(leave.end_date).toLocaleDateString('id-ID') : '-',
-          'Durasi (Hari)': leave.duration || '-',
-          'Alasan': leave.reason || '-',
-          'Status': leave.status || '-',
-          'Disetujui Oleh': leave.approvedByUser?.username || '-',
-          'Ditolak Oleh': leave.rejectedByUser?.username || '-',
-          'Tanggal Pengajuan': leave.created_at ? new Date(leave.created_at).toLocaleDateString('id-ID') : '-'
-        }));
+        const leaveReportData = leaveData.map(leave => {
+          // Calculate duration in days
+          let duration = '-';
+          if (leave.start_date && leave.end_date) {
+            const start = new Date(leave.start_date);
+            const end = new Date(leave.end_date);
+            const diffTime = Math.abs(end.getTime() - start.getTime());
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end date
+            duration = diffDays.toString();
+          }
+
+          return {
+            'NIK': leave.employee?.nik || '-',
+            'Nama': leave.employee ? `${leave.employee.first_name} ${leave.employee.last_name}` : '-',
+            'Departemen': leave.employee?.departemen?.nama || '-',
+            'Jenis Cuti': leave.leave_type || '-',
+            'Tanggal Mulai': leave.start_date ? new Date(leave.start_date).toLocaleDateString('id-ID') : '-',
+            'Tanggal Selesai': leave.end_date ? new Date(leave.end_date).toLocaleDateString('id-ID') : '-',
+            'Durasi (Hari)': duration,
+            'Alasan': leave.reason || '-',
+            'Status': leave.status || '-',
+            'Disetujui Oleh': leave.approvedByUser?.username || '-',
+            'Ditolak Oleh': leave.rejectedByUser?.username || '-',
+            'Tanggal Pengajuan': leave.created_at ? new Date(leave.created_at).toLocaleDateString('id-ID') : '-'
+          };
+        });
         
         data = leaveReportData;
         filename = `leave_report_${month}.xlsx`;
