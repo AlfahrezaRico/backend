@@ -2947,25 +2947,40 @@ app.post('/api/salary', async (req, res) => {
       return res.status(400).json({ error: 'Basic Salary harus lebih dari 0' });
     }
 
-    // Validate allowances cannot be negative
-    if (position_allowance && parseFloat(position_allowance) < 0) {
-      return res.status(400).json({ error: 'Tunjangan Jabatan tidak boleh minus' });
+    // Validate allowances - they can be empty/null, but if provided must be positive numbers
+    if (position_allowance !== undefined && position_allowance !== null && position_allowance !== '') {
+      const posAllowance = parseFloat(position_allowance);
+      if (isNaN(posAllowance) || posAllowance < 0) {
+        return res.status(400).json({ error: 'Tunjangan Jabatan harus berupa angka positif atau dikosongkan' });
+      }
     }
 
-    if (management_allowance && parseFloat(management_allowance) < 0) {
-      return res.status(400).json({ error: 'Tunjangan Manajemen tidak boleh minus' });
+    if (management_allowance !== undefined && management_allowance !== null && management_allowance !== '') {
+      const mgmtAllowance = parseFloat(management_allowance);
+      if (isNaN(mgmtAllowance) || mgmtAllowance < 0) {
+        return res.status(400).json({ error: 'Tunjangan Manajemen harus berupa angka positif atau dikosongkan' });
+      }
     }
 
-    if (phone_allowance && parseFloat(phone_allowance) < 0) {
-      return res.status(400).json({ error: 'Tunjangan Telepon tidak boleh minus' });
+    if (phone_allowance !== undefined && phone_allowance !== null && phone_allowance !== '') {
+      const phoneAllowance = parseFloat(phone_allowance);
+      if (isNaN(phoneAllowance) || phoneAllowance < 0) {
+        return res.status(400).json({ error: 'Tunjangan Telepon harus berupa angka positif atau dikosongkan' });
+      }
     }
 
-    if (incentive_allowance && parseFloat(incentive_allowance) < 0) {
-      return res.status(400).json({ error: 'Tunjangan Insentif tidak boleh minus' });
+    if (incentive_allowance !== undefined && incentive_allowance !== null && incentive_allowance !== '') {
+      const incentiveAllowance = parseFloat(incentiveAllowance);
+      if (isNaN(incentiveAllowance) || incentiveAllowance < 0) {
+        return res.status(400).json({ error: 'Tunjangan Insentif harus berupa angka positif atau dikosongkan' });
+      }
     }
 
-    if (overtime_allowance && parseFloat(overtime_allowance) < 0) {
-      return res.status(400).json({ error: 'Tunjangan Lembur tidak boleh minus' });
+    if (overtime_allowance !== undefined && overtime_allowance !== null && overtime_allowance !== '') {
+      const overtimeAllowance = parseFloat(overtime_allowance);
+      if (isNaN(overtimeAllowance) || overtimeAllowance < 0) {
+        return res.status(400).json({ error: 'Tunjangan Lembur harus berupa angka positif atau dikosongkan' });
+      }
     }
 
     // Check if employee exists
@@ -3035,25 +3050,40 @@ app.put('/api/salary/:id', async (req, res) => {
       return res.status(400).json({ error: 'Basic Salary harus lebih dari 0' });
     }
 
-    // Validate allowances cannot be negative
-    if (position_allowance && parseFloat(position_allowance) < 0) {
-      return res.status(400).json({ error: 'Tunjangan Jabatan tidak boleh minus' });
+    // Validate allowances - they can be empty/null, but if provided must be positive numbers
+    if (position_allowance !== undefined && position_allowance !== null && position_allowance !== '') {
+      const posAllowance = parseFloat(position_allowance);
+      if (isNaN(posAllowance) || posAllowance < 0) {
+        return res.status(400).json({ error: 'Tunjangan Jabatan harus berupa angka positif atau dikosongkan' });
+      }
     }
 
-    if (management_allowance && parseFloat(management_allowance) < 0) {
-      return res.status(400).json({ error: 'Tunjangan Manajemen tidak boleh minus' });
+    if (management_allowance !== undefined && management_allowance !== null && management_allowance !== '') {
+      const mgmtAllowance = parseFloat(management_allowance);
+      if (isNaN(mgmtAllowance) || mgmtAllowance < 0) {
+        return res.status(400).json({ error: 'Tunjangan Manajemen harus berupa angka positif atau dikosongkan' });
+      }
     }
 
-    if (phone_allowance && parseFloat(phone_allowance) < 0) {
-      return res.status(400).json({ error: 'Tunjangan Telepon tidak boleh minus' });
+    if (phone_allowance !== undefined && phone_allowance !== null && phone_allowance !== '') {
+      const phoneAllowance = parseFloat(phone_allowance);
+      if (isNaN(phoneAllowance) || phoneAllowance < 0) {
+        return res.status(400).json({ error: 'Tunjangan Telepon harus berupa angka positif atau dikosongkan' });
+      }
     }
 
-    if (incentive_allowance && parseFloat(incentive_allowance) < 0) {
-      return res.status(400).json({ error: 'Tunjangan Insentif tidak boleh minus' });
+    if (incentive_allowance !== undefined && incentive_allowance !== null && incentive_allowance !== '') {
+      const incentiveAllowance = parseFloat(incentiveAllowance);
+      if (isNaN(incentiveAllowance) || incentiveAllowance < 0) {
+        return res.status(400).json({ error: 'Tunjangan Insentif harus berupa angka positif atau dikosongkan' });
+      }
     }
 
-    if (overtime_allowance && parseFloat(overtime_allowance) < 0) {
-      return res.status(400).json({ error: 'Tunjangan Lembur tidak boleh minus' });
+    if (overtime_allowance !== undefined && overtime_allowance !== null && overtime_allowance !== '') {
+      const overtimeAllowance = parseFloat(overtime_allowance);
+      if (isNaN(overtimeAllowance) || overtimeAllowance < 0) {
+        return res.status(400).json({ error: 'Tunjangan Lembur harus berupa angka positif atau dikosongkan' });
+      }
     }
 
     const salary = await prisma.salary.update({
