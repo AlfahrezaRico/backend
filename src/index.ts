@@ -2299,13 +2299,10 @@ app.post('/api/employees/bulk', async (req, res) => {
     console.log('Bulk upload completed. Success:', successCount, 'Errors:', errorCount);
 
     res.json({
-      success: errorCount === 0,
+      success: results.length,
+      errorCount: errors.length,
       results,
-      summary: {
-        total: employees.length,
-        success: successCount,
-        error: errorCount
-      }
+      errors
     });
 
   } catch (err) {
@@ -2946,6 +2943,32 @@ app.post('/api/salary', async (req, res) => {
       return res.status(400).json({ error: 'Employee ID, NIK, dan Basic Salary wajib diisi' });
     }
 
+    // Validate basic salary must be positive
+    if (parseFloat(basic_salary) <= 0) {
+      return res.status(400).json({ error: 'Basic Salary harus lebih dari 0' });
+    }
+
+    // Validate allowances cannot be negative
+    if (position_allowance && parseFloat(position_allowance) < 0) {
+      return res.status(400).json({ error: 'Tunjangan Jabatan tidak boleh minus' });
+    }
+
+    if (management_allowance && parseFloat(management_allowance) < 0) {
+      return res.status(400).json({ error: 'Tunjangan Manajemen tidak boleh minus' });
+    }
+
+    if (phone_allowance && parseFloat(phone_allowance) < 0) {
+      return res.status(400).json({ error: 'Tunjangan Telepon tidak boleh minus' });
+    }
+
+    if (incentive_allowance && parseFloat(incentive_allowance) < 0) {
+      return res.status(400).json({ error: 'Tunjangan Insentif tidak boleh minus' });
+    }
+
+    if (overtime_allowance && parseFloat(overtime_allowance) < 0) {
+      return res.status(400).json({ error: 'Tunjangan Lembur tidak boleh minus' });
+    }
+
     // Check if employee exists
     const employee = await prisma.employees.findUnique({
       where: { id: employee_id }
@@ -3006,6 +3029,32 @@ app.put('/api/salary/:id', async (req, res) => {
 
     if (!basic_salary) {
       return res.status(400).json({ error: 'Basic Salary wajib diisi' });
+    }
+
+    // Validate basic salary must be positive
+    if (parseFloat(basic_salary) <= 0) {
+      return res.status(400).json({ error: 'Basic Salary harus lebih dari 0' });
+    }
+
+    // Validate allowances cannot be negative
+    if (position_allowance && parseFloat(position_allowance) < 0) {
+      return res.status(400).json({ error: 'Tunjangan Jabatan tidak boleh minus' });
+    }
+
+    if (management_allowance && parseFloat(management_allowance) < 0) {
+      return res.status(400).json({ error: 'Tunjangan Manajemen tidak boleh minus' });
+    }
+
+    if (phone_allowance && parseFloat(phone_allowance) < 0) {
+      return res.status(400).json({ error: 'Tunjangan Telepon tidak boleh minus' });
+    }
+
+    if (incentive_allowance && parseFloat(incentive_allowance) < 0) {
+      return res.status(400).json({ error: 'Tunjangan Insentif tidak boleh minus' });
+    }
+
+    if (overtime_allowance && parseFloat(overtime_allowance) < 0) {
+      return res.status(400).json({ error: 'Tunjangan Lembur tidak boleh minus' });
     }
 
     const salary = await prisma.salary.update({
@@ -3077,6 +3126,38 @@ app.post('/api/salary/bulk-upload', async (req, res) => {
           continue;
         }
 
+        // Validate basic salary must be positive
+        if (parseFloat(basic_salary) <= 0) {
+          errors.push({ row: item, error: 'Basic Salary harus lebih dari 0' });
+          continue;
+        }
+
+        // Validate allowances cannot be negative
+        if (position_allowance && parseFloat(position_allowance) < 0) {
+          errors.push({ row: item, error: 'Tunjangan Jabatan tidak boleh minus' });
+          continue;
+        }
+
+        if (management_allowance && parseFloat(management_allowance) < 0) {
+          errors.push({ row: item, error: 'Tunjangan Manajemen tidak boleh minus' });
+          continue;
+        }
+
+        if (phone_allowance && parseFloat(phone_allowance) < 0) {
+          errors.push({ row: item, error: 'Tunjangan Telepon tidak boleh minus' });
+          continue;
+        }
+
+        if (incentive_allowance && parseFloat(incentive_allowance) < 0) {
+          errors.push({ row: item, error: 'Tunjangan Insentif tidak boleh minus' });
+          continue;
+        }
+
+        if (overtime_allowance && parseFloat(overtime_allowance) < 0) {
+          errors.push({ row: item, error: 'Tunjangan Lembur tidak boleh minus' });
+          continue;
+        }
+
         // Check if employee exists
         const employee = await prisma.employees.findUnique({
           where: { id: employee_id }
@@ -3113,13 +3194,14 @@ app.post('/api/salary/bulk-upload', async (req, res) => {
 
         results.push(salary);
       } catch (error) {
-        errors.push({ row: item, error: error.message });
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        errors.push({ row: item, error: errorMessage });
       }
     }
 
     res.json({
       success: results.length,
-      errors: errors.length,
+      errorCount: errors.length,
       results,
       errors
     });
