@@ -2299,10 +2299,9 @@ app.post('/api/employees/bulk', async (req, res) => {
     console.log('Bulk upload completed. Success:', successCount, 'Errors:', errorCount);
 
     res.json({
-      success: results.length,
-      errorCount: errors.length,
-      results,
-      errors
+      success: successCount,
+      errorCount: errorCount,
+      results
     });
 
   } catch (err) {
