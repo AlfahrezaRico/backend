@@ -1683,7 +1683,7 @@ const payrollSchema = z.object({
   pay_period_start: z.string().min(1), // ISO date
   pay_period_end: z.string().min(1),   // ISO date
   gross_salary: z.number(),
-  deductions: z.number(),
+  total_deductions: z.number(),
   net_salary: z.number(),
   payment_date: z.string().min(1),     // ISO date
   status: z.string().min(1)
@@ -1721,7 +1721,7 @@ app.post('/api/payrolls', async (req, res) => {
       pay_period_start, 
       pay_period_end, 
       gross_salary, 
-      deductions, 
+      total_deductions, 
       net_salary, 
       payment_date, 
       status 
@@ -1752,7 +1752,7 @@ app.post('/api/payrolls', async (req, res) => {
       pay_period_start: new Date(pay_period_start),
       pay_period_end: new Date(pay_period_end),
       gross_salary: parseFloat(gross_salary),
-      deductions: parseFloat(deductions || 0),
+      deductions: parseFloat(total_deductions || 0),
       net_salary: parseFloat(net_salary),
       payment_date: payment_date ? new Date(payment_date) : null,
       status: status || 'PENDING'
