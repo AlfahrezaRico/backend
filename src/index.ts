@@ -1854,7 +1854,7 @@ app.post('/api/payrolls/calculate', async (req, res) => {
     const totalDeduction = totalAutoDeduction + totalManualDeduction;
     const netSalary = totalPendapatan - totalDeduction;
 
-    res.json({
+    const response = {
       calculated_components: calculated,
       totals: {
         basic_salary: basicSalaryNumber,
@@ -1866,7 +1866,10 @@ app.post('/api/payrolls/calculate', async (req, res) => {
         net_salary: netSalary
       },
       pure_basic_salary: pureBasicSalary
-    });
+    };
+
+    console.log('Backend calculation response:', response);
+    res.json(response);
 
   } catch (err) {
     console.error('Error calculating payroll:', err);
