@@ -112,12 +112,49 @@ model payrolls {
   employee_id      String    @db.Uuid
   pay_period_start DateTime  @db.Date
   pay_period_end   DateTime  @db.Date
+  basic_salary     Decimal?  @db.Decimal(15, 2)
   gross_salary     Decimal   @db.Decimal(15, 2)
-  deductions       Decimal   @default(0) @db.Decimal(15, 2)
   net_salary       Decimal   @db.Decimal(15, 2)
   payment_date     DateTime? @db.Date
   status           String    @default("PENDING") @db.VarChar(20)
-  employee         employees @relation(fields: [employee_id], references: [id])
+  
+  // Tunjangan dari Data Salary
+  position_allowance     Decimal? @db.Decimal(15, 2)
+  management_allowance   Decimal? @db.Decimal(15, 2)
+  phone_allowance        Decimal? @db.Decimal(15, 2)
+  incentive_allowance    Decimal? @db.Decimal(15, 2)
+  overtime_allowance     Decimal? @db.Decimal(15, 2)
+  total_allowances       Decimal? @db.Decimal(15, 2)
+  
+  // Komponen Payroll yang Dihitung
+  bpjs_employee          Decimal? @db.Decimal(15, 2)
+  bpjs_company           Decimal? @db.Decimal(15, 2)
+  pph21                  Decimal? @db.Decimal(15, 2)
+  jht_employee           Decimal? @db.Decimal(15, 2)
+  jht_company            Decimal? @db.Decimal(15, 2)
+  jp_employee            Decimal? @db.Decimal(15, 2)
+  jp_company             Decimal? @db.Decimal(15, 2)
+  jkk                    Decimal? @db.Decimal(15, 2)
+  jkm                    Decimal? @db.Decimal(15, 2)
+  
+  // Deductions Manual
+  kasbon                 Decimal? @db.Decimal(15, 2)
+  telat                  Decimal? @db.Decimal(15, 2)
+  angsuran_kredit        Decimal? @db.Decimal(15, 2)
+  
+  // Total Deductions
+  total_deductions       Decimal? @db.Decimal(15, 2)
+  
+  // Legacy field (untuk backward compatibility)
+  deductions             Decimal? @db.Decimal(15, 2)
+  
+  // Additional fields
+  created_by             String?  @db.Uuid
+  approved_by            String?  @db.Uuid
+  approved_at            DateTime? @db.Timestamptz(6)
+  updated_at             DateTime? @db.Timestamptz(6)
+  
+  employee               employees @relation(fields: [employee_id], references: [id])
 }
 
 model session {
