@@ -1772,6 +1772,102 @@ app.delete('/api/payrolls/:id', async (req, res) => {
   }
 });
 
+// CALCULATE payroll components
+app.post('/api/payrolls/calculate', async (req, res) => {
+  try {
+    const { employee_id, basic_salary, manual_deductions } = req.body;
+    
+    // Validate required fields
+    if (!employee_id || !basic_salary) {
+      return res.status(400).json({ error: 'Data tidak lengkap' });
+    }
+
+    // Get active payroll components
+    const activeComponents = await prisma.payrollComponents.findMany({
+      where: { is_active: true }
+    });
+
+    // Get employee salary data
+    const salaryData = await prisma.salary.findFirst({
+      where: { employee_id }
+    });
+
+    if (!salaryData) {
+      return res.status(404).json({ error: 'Data gaji karyawan tidak ditemukan' });
+    }
+
+    // Get pure basic salary (without allowances)
+    const pureBasicSalary = typeof salaryData.basic_salary === 'string' ? 
+      parseFloat(salaryData.basic_salary) || 0 : salaryData.basic_salary || 0;
+
+    // Calculate components
+    const calculated: any[] = [];
+    let totalIncome = 0;
+    let totalAutoDeduction = 0;
+
+    activeComponents.forEach(component => {
+      let amount = 0;
+      let isPercentage = false;
+
+      if (component.percentage > 0) {
+        // Use pure basic salary for percentage calculations
+        amount = (pureBasicSalary * component.percentage) / 100;
+        isPercentage = true;
+      } else if (component.amount > 0) {
+        amount = component.amount;
+        isPercentage = false;
+      }
+
+      // Use component type from database configuration
+      let effectiveType = component.type;
+      
+      calculated.push({
+        name: component.name,
+        type: effectiveType,
+        amount: amount,
+        percentage: component.percentage,
+        is_percentage: isPercentage,
+        category: component.category,
+        pureBasicSalary
+      });
+
+      // Calculate totals
+      if (effectiveType === 'income') {
+        totalIncome += amount;
+      } else if (effectiveType === 'deduction') {
+        totalAutoDeduction += amount;
+      }
+    });
+
+    // Calculate manual deductions
+    const manualDeductions = manual_deductions || { kasbon: 0, telat: 0, angsuran_kredit: 0 };
+    const totalManualDeduction = manualDeductions.kasbon + manualDeductions.telat + manualDeductions.angsuran_kredit;
+    
+    // Calculate final totals
+    const totalPendapatan = basic_salary + totalIncome;
+    const totalDeduction = totalAutoDeduction + totalManualDeduction;
+    const netSalary = totalPendapatan - totalDeduction;
+
+    res.json({
+      calculated_components: calculated,
+      totals: {
+        basic_salary,
+        total_income: totalIncome,
+        total_auto_deduction: totalAutoDeduction,
+        total_manual_deduction: totalManualDeduction,
+        total_deduction: totalDeduction,
+        total_pendapatan: totalPendapatan,
+        net_salary: netSalary
+      },
+      pure_basic_salary: pureBasicSalary
+    });
+
+  } catch (err) {
+    console.error('Error calculating payroll:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.post('/api/izin-sakit', izinUpload.single('file'), async (req, res) => {
   try {
     let { employee_id, tanggal, jenis, alasan } = req.body;
