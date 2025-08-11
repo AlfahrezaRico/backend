@@ -1782,8 +1782,11 @@ app.post('/api/payrolls/calculate', async (req, res) => {
       return res.status(400).json({ error: 'Data tidak lengkap' });
     }
 
+    // Convert basic_salary to number
+    const basicSalaryNumber = Number(basic_salary) || 0;
+
     // Get active payroll components
-    const activeComponents = await prisma.payrollComponents.findMany({
+    const activeComponents = await prisma.payroll_components.findMany({
       where: { is_active: true }
     });
 
@@ -1796,25 +1799,28 @@ app.post('/api/payrolls/calculate', async (req, res) => {
       return res.status(404).json({ error: 'Data gaji karyawan tidak ditemukan' });
     }
 
-    // Get pure basic salary (without allowances)
-    const pureBasicSalary = typeof salaryData.basic_salary === 'string' ? 
-      parseFloat(salaryData.basic_salary) || 0 : salaryData.basic_salary || 0;
+    // Get pure basic salary (without allowances) - convert Decimal to number
+    const pureBasicSalary = Number(salaryData.basic_salary) || 0;
 
     // Calculate components
     const calculated: any[] = [];
     let totalIncome = 0;
     let totalAutoDeduction = 0;
 
-    activeComponents.forEach(component => {
+    activeComponents.forEach((component: any) => {
       let amount = 0;
       let isPercentage = false;
 
-      if (component.percentage > 0) {
+      // Convert Decimal to number for calculations
+      const percentage = Number(component.percentage) || 0;
+      const componentAmount = Number(component.amount) || 0;
+
+      if (percentage > 0) {
         // Use pure basic salary for percentage calculations
-        amount = (pureBasicSalary * component.percentage) / 100;
+        amount = (pureBasicSalary * percentage) / 100;
         isPercentage = true;
-      } else if (component.amount > 0) {
-        amount = component.amount;
+      } else if (componentAmount > 0) {
+        amount = componentAmount;
         isPercentage = false;
       }
 
@@ -1825,7 +1831,7 @@ app.post('/api/payrolls/calculate', async (req, res) => {
         name: component.name,
         type: effectiveType,
         amount: amount,
-        percentage: component.percentage,
+        percentage: percentage,
         is_percentage: isPercentage,
         category: component.category,
         pureBasicSalary
@@ -1844,14 +1850,14 @@ app.post('/api/payrolls/calculate', async (req, res) => {
     const totalManualDeduction = manualDeductions.kasbon + manualDeductions.telat + manualDeductions.angsuran_kredit;
     
     // Calculate final totals
-    const totalPendapatan = basic_salary + totalIncome;
+    const totalPendapatan = basicSalaryNumber + totalIncome;
     const totalDeduction = totalAutoDeduction + totalManualDeduction;
     const netSalary = totalPendapatan - totalDeduction;
 
     res.json({
       calculated_components: calculated,
       totals: {
-        basic_salary,
+        basic_salary: basicSalaryNumber,
         total_income: totalIncome,
         total_auto_deduction: totalAutoDeduction,
         total_manual_deduction: totalManualDeduction,
