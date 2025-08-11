@@ -2970,7 +2970,7 @@ app.post('/api/salary', async (req, res) => {
     }
 
     if (incentive_allowance !== undefined && incentive_allowance !== null && incentive_allowance !== '') {
-      const incentiveAllowance = parseFloat(incentiveAllowance);
+      const incentiveAllowance = parseFloat(incentive_allowance);
       if (isNaN(incentiveAllowance) || incentiveAllowance < 0) {
         return res.status(400).json({ error: 'Tunjangan Insentif harus berupa angka positif atau dikosongkan' });
       }
@@ -3073,7 +3073,7 @@ app.put('/api/salary/:id', async (req, res) => {
     }
 
     if (incentive_allowance !== undefined && incentive_allowance !== null && incentive_allowance !== '') {
-      const incentiveAllowance = parseFloat(incentiveAllowance);
+      const incentiveAllowance = parseFloat(incentive_allowance);
       if (isNaN(incentiveAllowance) || incentiveAllowance < 0) {
         return res.status(400).json({ error: 'Tunjangan Insentif harus berupa angka positif atau dikosongkan' });
       }
