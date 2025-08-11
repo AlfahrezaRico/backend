@@ -2986,21 +2986,13 @@ app.post('/api/salary', async (req, res) => {
       }
     }
 
-    // Check if employee exists
-    const employee = await prisma.employees.findUnique({
-      where: { id: employee_id }
-    });
-
-    if (!employee) {
-      return res.status(404).json({ error: 'Karyawan tidak ditemukan' });
-    }
-
     // Check if salary record already exists for this employee or NIK
     const existingSalaryByEmployee = await prisma.salary.findUnique({
       where: { employee_id }
     });
 
     if (existingSalaryByEmployee) {
+      console.log('Existing salary found for employee:', existingSalaryByEmployee);
       return res.status(400).json({ error: 'Data gaji untuk karyawan ini sudah ada' });
     }
 
@@ -3009,7 +3001,27 @@ app.post('/api/salary', async (req, res) => {
     });
 
     if (existingSalaryByNIK) {
+      console.log('Existing salary found for NIK:', existingSalaryByNIK);
       return res.status(400).json({ error: 'NIK ini sudah digunakan untuk data gaji lain' });
+    }
+
+    // Debug: Check if employee exists and has correct NIK
+    const employee = await prisma.employees.findUnique({
+      where: { id: employee_id },
+      select: { id: true, nik: true, first_name: true, last_name: true }
+    });
+
+    if (!employee) {
+      console.log('Employee not found:', employee_id);
+      return res.status(404).json({ error: 'Karyawan tidak ditemukan' });
+    }
+
+    console.log('Employee found:', employee);
+    
+    // Check if NIK matches
+    if (employee.nik !== nik) {
+      console.log('NIK mismatch:', { employeeNIK: employee.nik, providedNIK: nik });
+      return res.status(400).json({ error: 'NIK tidak sesuai dengan karyawan yang dipilih' });
     }
 
     // Debug: Log the data that will be saved
@@ -3063,6 +3075,12 @@ app.post('/api/salary', async (req, res) => {
     res.status(201).json(salary);
   } catch (error) {
     console.error('Error creating salary:', error);
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack
+      });
+    }
     res.status(500).json({ error: 'Gagal membuat data gaji' });
   }
 });
