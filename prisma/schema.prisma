@@ -58,6 +58,7 @@ model employees {
   leave_requests     leave_requests[]
   payrolls           payrolls[]
   izin_sakit         izin_sakit[]
+  salary             salary?
   departemen         departemen? @relation(fields: [departemen_id], references: [id])
 }
 
@@ -198,4 +199,23 @@ model payroll_components {
   @@index([type])
   @@index([category])
   @@index([is_active])
+}
+
+model salary {
+  id                    String   @id @default(uuid()) @db.Uuid
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime @updatedAt @db.Timestamptz(6)
+  employee_id           String   @unique @db.Uuid
+  nik                   String   @unique @db.VarChar(50)
+  basic_salary          Decimal  @db.Decimal(15, 2)
+  position_allowance    Decimal? @db.Decimal(15, 2)
+  management_allowance  Decimal? @db.Decimal(15, 2)
+  phone_allowance       Decimal? @db.Decimal(15, 2)
+  incentive_allowance   Decimal? @db.Decimal(15, 2)
+  overtime_allowance    Decimal? @db.Decimal(15, 2)
+  
+  employee employees @relation(fields: [employee_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  
+  @@index([employee_id])
+  @@index([nik])
 }

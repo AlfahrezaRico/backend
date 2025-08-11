@@ -2908,6 +2908,227 @@ app.post('/api/export/:type', async (req, res) => {
 // Payroll Components routes
 app.use(payrollComponentsRouter);
 
+// Salary Management routes
+app.get('/api/salary', async (req, res) => {
+  try {
+    const salaryData = await prisma.salary.findMany({
+      include: {
+        employee: {
+          include: {
+            departemen: true
+          }
+        }
+      },
+      orderBy: { created_at: 'desc' }
+    });
+    res.json(salaryData);
+  } catch (error) {
+    console.error('Error fetching salary data:', error);
+    res.status(500).json({ error: 'Gagal mengambil data gaji' });
+  }
+});
+
+app.post('/api/salary', async (req, res) => {
+  try {
+    const { 
+      employee_id, 
+      nik, 
+      basic_salary, 
+      position_allowance, 
+      management_allowance, 
+      phone_allowance, 
+      incentive_allowance, 
+      overtime_allowance 
+    } = req.body;
+
+    // Validate required fields
+    if (!employee_id || !nik || !basic_salary) {
+      return res.status(400).json({ error: 'Employee ID, NIK, dan Basic Salary wajib diisi' });
+    }
+
+    // Check if employee exists
+    const employee = await prisma.employees.findUnique({
+      where: { id: employee_id }
+    });
+
+    if (!employee) {
+      return res.status(404).json({ error: 'Karyawan tidak ditemukan' });
+    }
+
+    // Check if salary record already exists for this employee
+    const existingSalary = await prisma.salary.findUnique({
+      where: { employee_id }
+    });
+
+    if (existingSalary) {
+      return res.status(400).json({ error: 'Data gaji untuk karyawan ini sudah ada' });
+    }
+
+    // Create salary record
+    const salary = await prisma.salary.create({
+      data: {
+        employee_id,
+        nik,
+        basic_salary: parseFloat(basic_salary),
+        position_allowance: position_allowance ? parseFloat(position_allowance) : null,
+        management_allowance: management_allowance ? parseFloat(management_allowance) : null,
+        phone_allowance: phone_allowance ? parseFloat(phone_allowance) : null,
+        incentive_allowance: incentive_allowance ? parseFloat(incentive_allowance) : null,
+        overtime_allowance: overtime_allowance ? parseFloat(overtime_allowance) : null
+      },
+      include: {
+        employee: {
+          include: {
+            departemen: true
+          }
+        }
+      }
+    });
+
+    res.status(201).json(salary);
+  } catch (error) {
+    console.error('Error creating salary:', error);
+    res.status(500).json({ error: 'Gagal membuat data gaji' });
+  }
+});
+
+app.put('/api/salary/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+      basic_salary, 
+      position_allowance, 
+      management_allowance, 
+      phone_allowance, 
+      incentive_allowance, 
+      overtime_allowance 
+    } = req.body;
+
+    if (!basic_salary) {
+      return res.status(400).json({ error: 'Basic Salary wajib diisi' });
+    }
+
+    const salary = await prisma.salary.update({
+      where: { id },
+      data: {
+        basic_salary: parseFloat(basic_salary),
+        position_allowance: position_allowance ? parseFloat(position_allowance) : null,
+        management_allowance: management_allowance ? parseFloat(management_allowance) : null,
+        phone_allowance: phone_allowance ? parseFloat(phone_allowance) : null,
+        incentive_allowance: incentive_allowance ? parseFloat(incentive_allowance) : null,
+        overtime_allowance: overtime_allowance ? parseFloat(overtime_allowance) : null
+      },
+      include: {
+        employee: {
+          include: {
+            departemen: true
+          }
+        }
+      }
+    });
+
+    res.json(salary);
+  } catch (error) {
+    console.error('Error updating salary:', error);
+    res.status(500).json({ error: 'Gagal mengupdate data gaji' });
+  }
+});
+
+app.delete('/api/salary/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.salary.delete({
+      where: { id }
+    });
+    res.json({ message: 'Data gaji berhasil dihapus' });
+  } catch (error) {
+    console.error('Error deleting salary:', error);
+    res.status(500).json({ error: 'Gagal menghapus data gaji' });
+  }
+});
+
+app.post('/api/salary/bulk-upload', async (req, res) => {
+  try {
+    const { salaryData } = req.body;
+
+    if (!Array.isArray(salaryData) || salaryData.length === 0) {
+      return res.status(400).json({ error: 'Data gaji harus berupa array dan tidak boleh kosong' });
+    }
+
+    const results = [];
+    const errors = [];
+
+    for (const item of salaryData) {
+      try {
+        const { 
+          employee_id, 
+          nik, 
+          basic_salary, 
+          position_allowance, 
+          management_allowance, 
+          phone_allowance, 
+          incentive_allowance, 
+          overtime_allowance 
+        } = item;
+
+        // Validate required fields
+        if (!employee_id || !nik || !basic_salary) {
+          errors.push({ row: item, error: 'Employee ID, NIK, dan Basic Salary wajib diisi' });
+          continue;
+        }
+
+        // Check if employee exists
+        const employee = await prisma.employees.findUnique({
+          where: { id: employee_id }
+        });
+
+        if (!employee) {
+          errors.push({ row: item, error: 'Karyawan tidak ditemukan' });
+          continue;
+        }
+
+        // Check if salary record already exists for this employee
+        const existingSalary = await prisma.salary.findUnique({
+          where: { employee_id }
+        });
+
+        if (existingSalary) {
+          errors.push({ row: item, error: 'Data gaji untuk karyawan ini sudah ada' });
+          continue;
+        }
+
+        // Create salary record
+        const salary = await prisma.salary.create({
+          data: {
+            employee_id,
+            nik,
+            basic_salary: parseFloat(basic_salary),
+            position_allowance: position_allowance ? parseFloat(position_allowance) : null,
+            management_allowance: management_allowance ? parseFloat(management_allowance) : null,
+            phone_allowance: phone_allowance ? parseFloat(phone_allowance) : null,
+            incentive_allowance: incentive_allowance ? parseFloat(incentive_allowance) : null,
+            overtime_allowance: overtime_allowance ? parseFloat(overtime_allowance) : null
+          }
+        });
+
+        results.push(salary);
+      } catch (error) {
+        errors.push({ row: item, error: error.message });
+      }
+    }
+
+    res.json({
+      success: results.length,
+      errors: errors.length,
+      results,
+      errors
+    });
+  } catch (error) {
+    console.error('Error bulk uploading salary:', error);
+    res.status(500).json({ error: 'Gagal upload data gaji secara massal' });
+  }
+});
+
 app.listen(port, () => {
   console.log("Server running on port", port);
 });
