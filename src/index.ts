@@ -3007,11 +3007,11 @@ app.post('/api/salary', async (req, res) => {
         employee_id,
         nik,
         basic_salary: parseFloat(basic_salary),
-        position_allowance: position_allowance ? parseFloat(position_allowance) : null,
-        management_allowance: management_allowance ? parseFloat(management_allowance) : null,
-        phone_allowance: phone_allowance ? parseFloat(phone_allowance) : null,
-        incentive_allowance: incentive_allowance ? parseFloat(incentive_allowance) : null,
-        overtime_allowance: overtime_allowance ? parseFloat(overtime_allowance) : null
+        position_allowance: position_allowance && position_allowance !== '' ? parseFloat(position_allowance) : null,
+        management_allowance: management_allowance && management_allowance !== '' ? parseFloat(management_allowance) : null,
+        phone_allowance: phone_allowance && phone_allowance !== '' ? parseFloat(phone_allowance) : null,
+        incentive_allowance: incentive_allowance && incentive_allowance !== '' ? parseFloat(incentive_allowance) : null,
+        overtime_allowance: overtime_allowance && overtime_allowance !== '' ? parseFloat(overtime_allowance) : null
       },
       include: {
         employee: {
@@ -3090,11 +3090,11 @@ app.put('/api/salary/:id', async (req, res) => {
       where: { id },
       data: {
         basic_salary: parseFloat(basic_salary),
-        position_allowance: position_allowance ? parseFloat(position_allowance) : null,
-        management_allowance: management_allowance ? parseFloat(management_allowance) : null,
-        phone_allowance: phone_allowance ? parseFloat(phone_allowance) : null,
-        incentive_allowance: incentive_allowance ? parseFloat(incentive_allowance) : null,
-        overtime_allowance: overtime_allowance ? parseFloat(overtime_allowance) : null
+        position_allowance: position_allowance && position_allowance !== '' ? parseFloat(position_allowance) : null,
+        management_allowance: management_allowance && management_allowance !== '' ? parseFloat(management_allowance) : null,
+        phone_allowance: phone_allowance && phone_allowance !== '' ? parseFloat(phone_allowance) : null,
+        incentive_allowance: incentive_allowance && incentive_allowance !== '' ? parseFloat(incentive_allowance) : null,
+        overtime_allowance: overtime_allowance && overtime_allowance !== '' ? parseFloat(overtime_allowance) : null
       },
       include: {
         employee: {
