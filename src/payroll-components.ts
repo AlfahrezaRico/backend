@@ -15,7 +15,7 @@ router.get('/api/payroll-components', async (req, res) => {
       ]
     });
     res.json(components);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error fetching payroll components:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -34,7 +34,7 @@ router.get('/api/payroll-components/:id', async (req, res) => {
     }
     
     res.json(component);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error fetching payroll component:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -79,11 +79,11 @@ router.post('/api/payroll-components', async (req, res) => {
     });
     
     res.status(201).json(component);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error creating payroll component:', error);
     
     // Check for specific Prisma errors
-    if (error.code === 'P2002') {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
       return res.status(400).json({ 
         error: 'Komponen dengan nama yang sama sudah ada' 
       });
@@ -114,7 +114,7 @@ router.put('/api/payroll-components/:id', async (req, res) => {
     });
     
     res.json(component);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error updating payroll component:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -130,7 +130,7 @@ router.delete('/api/payroll-components/:id', async (req, res) => {
     });
     
     res.json({ message: 'Payroll component deleted successfully' });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error deleting payroll component:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -158,7 +158,7 @@ router.patch('/api/payroll-components/:id/toggle', async (req, res) => {
     });
     
     res.json(component);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error toggling payroll component:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -188,7 +188,7 @@ router.get('/api/payroll-components/stats', async (req, res) => {
       bpjs_count: bpjsCount,
       active_count: activeCount
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error fetching payroll components stats:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
