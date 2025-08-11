@@ -2926,6 +2926,9 @@ app.get('/api/salary', async (req, res) => {
 
 app.post('/api/salary', async (req, res) => {
   try {
+    // Debug: Log the entire request body
+    console.log('Salary POST request body:', JSON.stringify(req.body, null, 2));
+    
     const { 
       employee_id, 
       nik, 
@@ -3001,18 +3004,23 @@ app.post('/api/salary', async (req, res) => {
       return res.status(400).json({ error: 'Data gaji untuk karyawan ini sudah ada' });
     }
 
+    // Debug: Log the data that will be saved
+    const salaryData = {
+      employee_id,
+      nik,
+      basic_salary: parseFloat(basic_salary),
+      position_allowance: position_allowance && position_allowance !== '' ? parseFloat(position_allowance) : null,
+      management_allowance: management_allowance && management_allowance !== '' ? parseFloat(management_allowance) : null,
+      phone_allowance: phone_allowance && phone_allowance !== '' ? parseFloat(phone_allowance) : null,
+      incentive_allowance: incentive_allowance && incentive_allowance !== '' ? parseFloat(incentive_allowance) : null,
+      overtime_allowance: overtime_allowance && overtime_allowance !== '' ? parseFloat(overtime_allowance) : null
+    };
+    
+    console.log('Salary data to be saved:', JSON.stringify(salaryData, null, 2));
+    
     // Create salary record
     const salary = await prisma.salary.create({
-      data: {
-        employee_id,
-        nik,
-        basic_salary: parseFloat(basic_salary),
-        position_allowance: position_allowance && position_allowance !== '' ? parseFloat(position_allowance) : null,
-        management_allowance: management_allowance && management_allowance !== '' ? parseFloat(management_allowance) : null,
-        phone_allowance: phone_allowance && phone_allowance !== '' ? parseFloat(phone_allowance) : null,
-        incentive_allowance: incentive_allowance && incentive_allowance !== '' ? parseFloat(incentive_allowance) : null,
-        overtime_allowance: overtime_allowance && overtime_allowance !== '' ? parseFloat(overtime_allowance) : null
-      },
+      data: salaryData,
       include: {
         employee: {
           include: {
