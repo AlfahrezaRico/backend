@@ -1716,11 +1716,35 @@ app.get('/api/payrolls/:id', async (req, res) => {
 // CREATE payroll
 app.post('/api/payrolls', async (req, res) => {
   try {
-    const { employee_id, pay_period_start, pay_period_end, gross_salary, deductions, net_salary, payment_date, status } = req.body;
+    const { 
+      employee_id, 
+      pay_period_start, 
+      pay_period_end, 
+      gross_salary, 
+      deductions, 
+      net_salary, 
+      payment_date, 
+      status 
+    } = req.body;
+    
+    console.log('Received payroll data:', req.body);
     
     // Validate required fields
     if (!employee_id || !pay_period_start || !pay_period_end || !gross_salary || !net_salary) {
-      return res.status(400).json({ error: 'Data payroll tidak lengkap' });
+      return res.status(400).json({ 
+        error: 'Data payroll tidak lengkap',
+        required: ['employee_id', 'pay_period_start', 'pay_period_end', 'gross_salary', 'net_salary'],
+        received: { employee_id, pay_period_start, pay_period_end, gross_salary, net_salary }
+      });
+    }
+
+    // Validate employee exists
+    const employee = await prisma.employees.findUnique({
+      where: { id: employee_id }
+    });
+    
+    if (!employee) {
+      return res.status(400).json({ error: 'Karyawan tidak ditemukan' });
     }
 
     const data = {
@@ -1734,15 +1758,38 @@ app.post('/api/payrolls', async (req, res) => {
       status: status || 'PENDING'
     };
 
+    console.log('Processed payroll data:', data);
+
     const payroll = await prisma.payrolls.create({ 
       data,
-      include: { employee: true }
+      include: { 
+        employee: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            email: true,
+            nik: true
+          }
+        } 
+      }
     });
     
+    console.log('Payroll created successfully:', payroll);
     res.status(201).json(payroll);
-  } catch (err) {
+  } catch (err: any) {
     console.error('Error creating payroll:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    
+    // Check for specific Prisma errors
+    if (err.code === 'P2002') {
+      return res.status(400).json({ error: 'Data payroll dengan periode yang sama sudah ada' });
+    }
+    
+    if (err.code === 'P2003') {
+      return res.status(400).json({ error: 'Employee ID tidak valid' });
+    }
+    
+    res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 });
 

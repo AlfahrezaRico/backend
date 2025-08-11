@@ -45,6 +45,27 @@ router.post('/api/payroll-components', async (req, res) => {
   try {
     const { name, type, category, percentage, amount, description } = req.body;
     
+    // Validate required fields
+    if (!name || !type || !category) {
+      return res.status(400).json({ 
+        error: 'Nama, tipe, dan kategori harus diisi' 
+      });
+    }
+    
+    // Validate type values
+    if (!['income', 'deduction'].includes(type)) {
+      return res.status(400).json({ 
+        error: 'Tipe harus berupa "income" atau "deduction"' 
+      });
+    }
+    
+    // Validate category values
+    if (!['fixed', 'bpjs', 'other'].includes(category)) {
+      return res.status(400).json({ 
+        error: 'Kategori harus berupa "fixed", "bpjs", atau "other"' 
+      });
+    }
+    
     const component = await prisma.payroll_components.create({
       data: {
         name,
@@ -52,13 +73,22 @@ router.post('/api/payroll-components', async (req, res) => {
         category,
         percentage: percentage || 0,
         amount: amount || 0,
-        description
+        description: description || null,
+        is_active: true
       }
     });
     
     res.status(201).json(component);
   } catch (error) {
     console.error('Error creating payroll component:', error);
+    
+    // Check for specific Prisma errors
+    if (error.code === 'P2002') {
+      return res.status(400).json({ 
+        error: 'Komponen dengan nama yang sama sudah ada' 
+      });
+    }
+    
     res.status(500).json({ error: 'Internal server error' });
   }
 });
