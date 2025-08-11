@@ -1696,16 +1696,20 @@ const payrollSchema = z.object({
   overtime_allowance: z.number().optional(),
   total_allowances: z.number().optional(),
   
-  // Komponen Payroll yang Dihitung
-  bpjs_employee: z.number().optional(),
-  bpjs_company: z.number().optional(),
-  pph21: z.number().optional(),
-  jht_employee: z.number().optional(),
+  // Komponen Payroll yang Dihitung - Perusahaan
+  bpjs_health_company: z.number().optional(),
   jht_company: z.number().optional(),
-  jp_employee: z.number().optional(),
+  jkk_company: z.number().optional(),
+  jkm_company: z.number().optional(),
   jp_company: z.number().optional(),
-  jkk: z.number().optional(),
-  jkm: z.number().optional(),
+  
+  // Komponen Payroll yang Dihitung - Karyawan
+  bpjs_health_employee: z.number().optional(),
+  jht_employee: z.number().optional(),
+  jp_employee: z.number().optional(),
+  
+  // Pajak
+  pph21: z.number().optional(),
   
   // Deductions Manual
   kasbon: z.number().optional(),
@@ -1761,16 +1765,20 @@ app.post('/api/payrolls', async (req, res) => {
       overtime_allowance,
       total_allowances,
       
-      // Komponen Payroll yang Dihitung
-      bpjs_employee,
-      bpjs_company,
-      pph21,
-      jht_employee,
+      // Komponen Payroll yang Dihitung - Perusahaan
+      bpjs_health_company,
       jht_company,
-      jp_employee,
+      jkk_company,
+      jkm_company,
       jp_company,
-      jkk,
-      jkm,
+      
+      // Komponen Payroll yang Dihitung - Karyawan
+      bpjs_health_employee,
+      jht_employee,
+      jp_employee,
+      
+      // Pajak
+      pph21,
       
       // Deductions Manual
       kasbon,
@@ -1819,16 +1827,20 @@ app.post('/api/payrolls', async (req, res) => {
       overtime_allowance: parseFloat(overtime_allowance || 0),
       total_allowances: parseFloat(total_allowances || 0),
       
-      // Komponen Payroll yang Dihitung
-      bpjs_employee: parseFloat(bpjs_employee || 0),
-      bpjs_company: parseFloat(bpjs_company || 0),
-      pph21: parseFloat(pph21 || 0),
-      jht_employee: parseFloat(jht_employee || 0),
+      // Komponen Payroll yang Dihitung - Perusahaan
+      bpjs_health_company: parseFloat(bpjs_health_company || 0),
       jht_company: parseFloat(jht_company || 0),
-      jp_employee: parseFloat(jp_employee || 0),
+      jkk_company: parseFloat(jkk_company || 0),
+      jkm_company: parseFloat(jkm_company || 0),
       jp_company: parseFloat(jp_company || 0),
-      jkk: parseFloat(jkk || 0),
-      jkm: parseFloat(jkm || 0),
+      
+      // Komponen Payroll yang Dihitung - Karyawan
+      bpjs_health_employee: parseFloat(bpjs_health_employee || 0),
+      jht_employee: parseFloat(jht_employee || 0),
+      jp_employee: parseFloat(jp_employee || 0),
+      
+      // Pajak
+      pph21: parseFloat(pph21 || 0),
       
       // Deductions Manual
       kasbon: parseFloat(kasbon || 0),

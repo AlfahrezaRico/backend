@@ -126,16 +126,20 @@ model payrolls {
   overtime_allowance     Decimal? @db.Decimal(15, 2)
   total_allowances       Decimal? @db.Decimal(15, 2)
   
-  // Komponen Payroll yang Dihitung
-  bpjs_employee          Decimal? @db.Decimal(15, 2)
-  bpjs_company           Decimal? @db.Decimal(15, 2)
-  pph21                  Decimal? @db.Decimal(15, 2)
-  jht_employee           Decimal? @db.Decimal(15, 2)
+  // Komponen Payroll yang Dihitung - Perusahaan
+  bpjs_health_company    Decimal? @db.Decimal(15, 2)
   jht_company            Decimal? @db.Decimal(15, 2)
-  jp_employee            Decimal? @db.Decimal(15, 2)
+  jkk_company            Decimal? @db.Decimal(15, 2)
+  jkm_company            Decimal? @db.Decimal(15, 2)
   jp_company             Decimal? @db.Decimal(15, 2)
-  jkk                    Decimal? @db.Decimal(15, 2)
-  jkm                    Decimal? @db.Decimal(15, 2)
+  
+  // Komponen Payroll yang Dihitung - Karyawan
+  bpjs_health_employee   Decimal? @db.Decimal(15, 2)
+  jht_employee           Decimal? @db.Decimal(15, 2)
+  jp_employee            Decimal? @db.Decimal(15, 2)
+  
+  // Pajak
+  pph21                  Decimal? @db.Decimal(15, 2)
   
   // Deductions Manual
   kasbon                 Decimal? @db.Decimal(15, 2)
