@@ -2995,13 +2995,21 @@ app.post('/api/salary', async (req, res) => {
       return res.status(404).json({ error: 'Karyawan tidak ditemukan' });
     }
 
-    // Check if salary record already exists for this employee
-    const existingSalary = await prisma.salary.findUnique({
+    // Check if salary record already exists for this employee or NIK
+    const existingSalaryByEmployee = await prisma.salary.findUnique({
       where: { employee_id }
     });
 
-    if (existingSalary) {
+    if (existingSalaryByEmployee) {
       return res.status(400).json({ error: 'Data gaji untuk karyawan ini sudah ada' });
+    }
+
+    const existingSalaryByNIK = await prisma.salary.findUnique({
+      where: { nik }
+    });
+
+    if (existingSalaryByNIK) {
+      return res.status(400).json({ error: 'NIK ini sudah digunakan untuk data gaji lain' });
     }
 
     // Debug: Log the data that will be saved
@@ -3015,6 +3023,28 @@ app.post('/api/salary', async (req, res) => {
       incentive_allowance: incentive_allowance && incentive_allowance !== '' ? parseFloat(incentive_allowance) : null,
       overtime_allowance: overtime_allowance && overtime_allowance !== '' ? parseFloat(overtime_allowance) : null
     };
+    
+    // Validate that all numeric values are valid
+    if (isNaN(salaryData.basic_salary)) {
+      return res.status(400).json({ error: 'Basic Salary harus berupa angka yang valid' });
+    }
+    
+    // Validate allowances are valid numbers if provided
+    if (salaryData.position_allowance !== null && isNaN(salaryData.position_allowance)) {
+      return res.status(400).json({ error: 'Tunjangan Jabatan harus berupa angka yang valid' });
+    }
+    if (salaryData.management_allowance !== null && isNaN(salaryData.management_allowance)) {
+      return res.status(400).json({ error: 'Tunjangan Manajemen harus berupa angka yang valid' });
+    }
+    if (salaryData.phone_allowance !== null && isNaN(salaryData.phone_allowance)) {
+      return res.status(400).json({ error: 'Tunjangan Telepon harus berupa angka yang valid' });
+    }
+    if (salaryData.incentive_allowance !== null && isNaN(salaryData.incentive_allowance)) {
+      return res.status(400).json({ error: 'Tunjangan Insentif harus berupa angka yang valid' });
+    }
+    if (salaryData.overtime_allowance !== null && isNaN(salaryData.overtime_allowance)) {
+      return res.status(400).json({ error: 'Tunjangan Lembur harus berupa angka yang valid' });
+    }
     
     console.log('Salary data to be saved:', JSON.stringify(salaryData, null, 2));
     
