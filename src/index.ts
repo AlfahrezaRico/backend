@@ -1682,11 +1682,38 @@ const payrollSchema = z.object({
   employee_id: z.string().uuid(),
   pay_period_start: z.string().min(1), // ISO date
   pay_period_end: z.string().min(1),   // ISO date
+  basic_salary: z.number().optional(),
   gross_salary: z.number(),
-  total_deductions: z.number(),
   net_salary: z.number(),
   payment_date: z.string().min(1),     // ISO date
-  status: z.string().min(1)
+  status: z.string().min(1),
+  
+  // Tunjangan dari Data Salary
+  position_allowance: z.number().optional(),
+  management_allowance: z.number().optional(),
+  phone_allowance: z.number().optional(),
+  incentive_allowance: z.number().optional(),
+  overtime_allowance: z.number().optional(),
+  total_allowances: z.number().optional(),
+  
+  // Komponen Payroll yang Dihitung
+  bpjs_employee: z.number().optional(),
+  bpjs_company: z.number().optional(),
+  pph21: z.number().optional(),
+  jht_employee: z.number().optional(),
+  jht_company: z.number().optional(),
+  jp_employee: z.number().optional(),
+  jp_company: z.number().optional(),
+  jkk: z.number().optional(),
+  jkm: z.number().optional(),
+  
+  // Deductions Manual
+  kasbon: z.number().optional(),
+  telat: z.number().optional(),
+  angsuran_kredit: z.number().optional(),
+  
+  // Total Deductions
+  total_deductions: z.number().optional()
 });
 
 // GET all payrolls
@@ -1720,11 +1747,38 @@ app.post('/api/payrolls', async (req, res) => {
       employee_id, 
       pay_period_start, 
       pay_period_end, 
+      basic_salary,
       gross_salary, 
-      total_deductions, 
       net_salary, 
       payment_date, 
-      status 
+      status,
+      
+      // Tunjangan dari Data Salary
+      position_allowance,
+      management_allowance,
+      phone_allowance,
+      incentive_allowance,
+      overtime_allowance,
+      total_allowances,
+      
+      // Komponen Payroll yang Dihitung
+      bpjs_employee,
+      bpjs_company,
+      pph21,
+      jht_employee,
+      jht_company,
+      jp_employee,
+      jp_company,
+      jkk,
+      jkm,
+      
+      // Deductions Manual
+      kasbon,
+      telat,
+      angsuran_kredit,
+      
+      // Total Deductions
+      total_deductions
     } = req.body;
     
     console.log('Received payroll data:', req.body);
@@ -1751,11 +1805,38 @@ app.post('/api/payrolls', async (req, res) => {
       employee_id,
       pay_period_start: new Date(pay_period_start),
       pay_period_end: new Date(pay_period_end),
+      basic_salary: parseFloat(basic_salary || 0),
       gross_salary: parseFloat(gross_salary),
-      deductions: parseFloat(total_deductions || 0),
       net_salary: parseFloat(net_salary),
       payment_date: payment_date ? new Date(payment_date) : null,
-      status: status || 'PENDING'
+      status: status || 'PENDING',
+      
+      // Tunjangan dari Data Salary
+      position_allowance: parseFloat(position_allowance || 0),
+      management_allowance: parseFloat(management_allowance || 0),
+      phone_allowance: parseFloat(phone_allowance || 0),
+      incentive_allowance: parseFloat(incentive_allowance || 0),
+      overtime_allowance: parseFloat(overtime_allowance || 0),
+      total_allowances: parseFloat(total_allowances || 0),
+      
+      // Komponen Payroll yang Dihitung
+      bpjs_employee: parseFloat(bpjs_employee || 0),
+      bpjs_company: parseFloat(bpjs_company || 0),
+      pph21: parseFloat(pph21 || 0),
+      jht_employee: parseFloat(jht_employee || 0),
+      jht_company: parseFloat(jht_company || 0),
+      jp_employee: parseFloat(jp_employee || 0),
+      jp_company: parseFloat(jp_company || 0),
+      jkk: parseFloat(jkk || 0),
+      jkm: parseFloat(jkm || 0),
+      
+      // Deductions Manual
+      kasbon: parseFloat(kasbon || 0),
+      telat: parseFloat(telat || 0),
+      angsuran_kredit: parseFloat(angsuran_kredit || 0),
+      
+      // Total Deductions
+      total_deductions: parseFloat(total_deductions || 0)
     };
 
     console.log('Processed payroll data:', data);
