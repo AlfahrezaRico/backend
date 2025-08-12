@@ -60,37 +60,24 @@ const BUCKET = process.env.SUPABASE_BUCKET || 'izin-sakit';
 // Middleware
 app.use(helmet());
 
-// CORS configuration based on environment
-const isDevelopment = process.env.NODE_ENV !== 'production';
+// CORS configuration
 const allowedOrigins = process.env.ALLOWED_ORIGIN
   ? process.env.ALLOWED_ORIGIN.split(',').map(origin => origin.trim())
-  : isDevelopment 
-    ? ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"]
-    : ["https://frontend-react-production-ab1f.up.railway.app", "https://hris-pulse-dashboard.vercel.app"];
+  : ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"];
 
 app.use(cors({
   origin: function(origin, callback) {
     if (!origin) return callback(null, true); // Allow non-browser requests
     
-    // In development, allow all localhost origins
-    if (isDevelopment && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
-      return callback(null, true);
-    }
-    
-    // In production, allow Railway domains
-    if (!isDevelopment && (origin.includes('up.railway.app') || origin.includes('railway.app'))) {
-      return callback(null, true);
-    }
-    
     if (allowedOrigins.indexOf(origin) !== -1) {
       return callback(null, true);
     } else {
-      console.log('CORS blocked origin:', origin, 'Environment:', process.env.NODE_ENV);
+      console.log('CORS blocked origin:', origin, 'Allowed origins:', allowedOrigins);
       return callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
