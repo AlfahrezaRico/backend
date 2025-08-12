@@ -1718,17 +1718,19 @@ const payrollSchema = z.object({
   overtime_allowance: z.number().optional(),
   total_allowances: z.number().optional(),
   
-  // Komponen Payroll yang Dihitung - Perusahaan
+  // Komponen Payroll yang Dihitung - Perusahaan (PENDAPATAN TETAP)
   bpjs_health_company: z.number().optional(),
   jht_company: z.number().optional(),
   jkk_company: z.number().optional(),
   jkm_company: z.number().optional(),
   jp_company: z.number().optional(),
+  subtotal_company: z.number().optional(),
   
-  // Komponen Payroll yang Dihitung - Karyawan
+  // Komponen Payroll yang Dihitung - Karyawan (POTONGAN)
   bpjs_health_employee: z.number().optional(),
   jht_employee: z.number().optional(),
   jp_employee: z.number().optional(),
+  subtotal_employee: z.number().optional(),
   
   // Pajak
   pph21: z.number().optional(),
@@ -1739,7 +1741,15 @@ const payrollSchema = z.object({
   angsuran_kredit: z.number().optional(),
   
   // Total Deductions
-  total_deductions: z.number().optional()
+  total_deductions: z.number().optional(),
+  
+  // Total Pendapatan (Gaji + Tunjangan + BPJS Perusahaan)
+  total_pendapatan: z.number().optional(),
+  
+  // Additional fields
+  created_by: z.string().uuid().optional(),
+  approved_by: z.string().uuid().optional(),
+  approved_at: z.string().optional()
 });
 
 // GET all payrolls
@@ -1819,17 +1829,19 @@ app.post('/api/payrolls', async (req, res) => {
       overtime_allowance,
       total_allowances,
       
-      // Komponen Payroll yang Dihitung - Perusahaan
+      // Komponen Payroll yang Dihitung - Perusahaan (PENDAPATAN TETAP)
       bpjs_health_company,
       jht_company,
       jkk_company,
       jkm_company,
       jp_company,
+      subtotal_company,
       
-      // Komponen Payroll yang Dihitung - Karyawan
+      // Komponen Payroll yang Dihitung - Karyawan (POTONGAN)
       bpjs_health_employee,
       jht_employee,
       jp_employee,
+      subtotal_employee,
       
       // Pajak
       pph21,
@@ -1840,7 +1852,15 @@ app.post('/api/payrolls', async (req, res) => {
       angsuran_kredit,
       
       // Total Deductions
-      total_deductions
+      total_deductions,
+      
+      // Total Pendapatan (Gaji + Tunjangan + BPJS Perusahaan)
+      total_pendapatan,
+      
+      // Additional fields
+      created_by,
+      approved_by,
+      approved_at
     } = req.body;
     
     console.log('Received payroll data:', req.body);
@@ -1881,17 +1901,19 @@ app.post('/api/payrolls', async (req, res) => {
       overtime_allowance: parseFloat(overtime_allowance || 0),
       total_allowances: parseFloat(total_allowances || 0),
       
-      // Komponen Payroll yang Dihitung - Perusahaan
+      // Komponen Payroll yang Dihitung - Perusahaan (PENDAPATAN TETAP)
       bpjs_health_company: parseFloat(bpjs_health_company || 0),
       jht_company: parseFloat(jht_company || 0),
       jkk_company: parseFloat(jkk_company || 0),
       jkm_company: parseFloat(jkm_company || 0),
       jp_company: parseFloat(jp_company || 0),
+      subtotal_company: parseFloat(subtotal_company || 0),
       
-      // Komponen Payroll yang Dihitung - Karyawan
+      // Komponen Payroll yang Dihitung - Karyawan (POTONGAN)
       bpjs_health_employee: parseFloat(bpjs_health_employee || 0),
       jht_employee: parseFloat(jht_employee || 0),
       jp_employee: parseFloat(jp_employee || 0),
+      subtotal_employee: parseFloat(subtotal_employee || 0),
       
       // Pajak
       pph21: parseFloat(pph21 || 0),
@@ -1902,7 +1924,15 @@ app.post('/api/payrolls', async (req, res) => {
       angsuran_kredit: parseFloat(angsuran_kredit || 0),
       
       // Total Deductions
-      total_deductions: parseFloat(total_deductions || 0)
+      total_deductions: parseFloat(total_deductions || 0),
+      
+      // Total Pendapatan (Gaji + Tunjangan + BPJS Perusahaan)
+      total_pendapatan: parseFloat(total_pendapatan || 0),
+      
+      // Additional fields
+      created_by,
+      approved_by,
+      approved_at
     };
 
     console.log('Processed payroll data:', data);
