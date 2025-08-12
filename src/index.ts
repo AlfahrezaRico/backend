@@ -1947,8 +1947,22 @@ app.post('/api/payrolls/calculate', async (req, res) => {
       where: { is_active: true }
     });
 
-    // Get employee salary data
-    const salaryData = await prisma.salary.findFirst({
+    console.log('Active payroll components found:', activeComponents.length);
+    console.log('Components:', activeComponents.map(c => ({ name: c.name, type: c.type, category: c.category, percentage: c.percentage, amount: c.amount })));
+
+    // Get employee data
+    const employeeData = await prisma.employees.findUnique({
+      where: { id: employee_id }
+    });
+
+    if (!employeeData) {
+      return res.status(404).json({ error: 'Data karyawan tidak ditemukan' });
+    }
+
+    console.log('Employee found:', { id: employeeData.id, name: `${employeeData.first_name} ${employeeData.last_name}` });
+
+    // Get salary data dari tabel salary
+    const salaryData = await prisma.salary.findUnique({
       where: { employee_id }
     });
 
@@ -1956,7 +1970,16 @@ app.post('/api/payrolls/calculate', async (req, res) => {
       return res.status(404).json({ error: 'Data gaji karyawan tidak ditemukan' });
     }
 
-    // Get pure basic salary (without allowances) - convert Decimal to number
+    console.log('Salary data found:', { 
+      basic_salary: salaryData.basic_salary,
+      position_allowance: salaryData.position_allowance,
+      management_allowance: salaryData.management_allowance,
+      phone_allowance: salaryData.phone_allowance,
+      incentive_allowance: salaryData.incentive_allowance,
+      overtime_allowance: salaryData.overtime_allowance
+    });
+
+    // Get pure basic salary dari salary data
     const pureBasicSalary = Number(salaryData.basic_salary) || 0;
 
     // Calculate components
@@ -2007,14 +2030,26 @@ app.post('/api/payrolls/calculate', async (req, res) => {
     const totalManualDeduction = manualDeductions.kasbon + manualDeductions.telat + manualDeductions.angsuran_kredit;
     
     // Calculate final totals
-    const totalPendapatan = basicSalaryNumber + totalIncome;  // Gaji Pokok + Tunjangan
+    // basicSalaryNumber dari frontend sudah termasuk tunjangan
+    const totalPendapatan = basicSalaryNumber;  // Total dari frontend
     const totalDeduction = totalAutoDeduction + totalManualDeduction;  // BPJS + Pajak + Manual
     const netSalary = totalPendapatan - totalDeduction;  // Total Pendapatan - Total Deduction
 
+    console.log('Calculation details:', {
+      basicSalaryNumber,
+      pureBasicSalary,
+      totalIncome,
+      totalAutoDeduction,
+      totalManualDeduction,
+      totalDeduction,
+      totalPendapatan,
+      netSalary
+    });
+
     // Breakdown pendapatan yang lengkap untuk frontend
     const breakdownPendapatan = {
-      pendapatan_tetap: basicSalaryNumber,           // Gaji Pokok
-      pendapatan_tidak_tetap: totalIncome,           // Total Tunjangan
+      pendapatan_tetap: pureBasicSalary,           // Gaji Pokok murni
+      pendapatan_tidak_tetap: totalPendapatan - pureBasicSalary,  // Total Tunjangan
       total_pendapatan: totalPendapatan              // Total keseluruhan
     };
 
