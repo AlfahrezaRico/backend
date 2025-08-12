@@ -1677,6 +1677,41 @@ app.get('/api/attendance-records', async (req, res) => {
   }
 });
 
+// === Payroll Components Endpoints ===
+app.get('/api/payroll-components', async (req, res) => {
+  try {
+    console.log('Fetching payroll components...');
+    
+    const components = await prisma.payroll_components.findMany({
+      where: { is_active: true },
+      orderBy: [
+        { type: 'asc' },
+        { category: 'asc' },
+        { name: 'asc' }
+      ]
+    });
+    
+    console.log(`Found ${components.length} active payroll components`);
+    res.json(components);
+  } catch (error) {
+    console.error('Error fetching payroll components:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// === HR Pending Endpoint ===
+app.get('/api/hr-pending', async (req, res) => {
+  try {
+    console.log('Fetching HR pending data...');
+    
+    // Return empty array for now (bisa diisi sesuai kebutuhan)
+    res.json([]);
+  } catch (error) {
+    console.error('Error fetching HR pending data:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // === Payroll Endpoints ===
 const payrollSchema = z.object({
   employee_id: z.string().uuid(),
@@ -1723,12 +1758,44 @@ const payrollSchema = z.object({
 // GET all payrolls
 app.get('/api/payrolls', async (req, res) => {
   try {
-    const payrolls = await prisma.payrolls.findMany({ include: { employee: true } });
-    // Pastikan payrolls selalu array, dan jika employee null, tetap return payroll
-    const safePayrolls = payrolls.map(p => ({ ...p, employee: p.employee || null }));
-    res.json(safePayrolls);
+    console.log('Fetching payrolls...');
+    
+    // Cek apakah tabel payrolls ada
+    try {
+      const payrolls = await prisma.payrolls.findMany({ 
+        include: { 
+          employee: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              email: true,
+              position: true
+            }
+          } 
+        } 
+      });
+      
+      console.log(`Found ${payrolls.length} payrolls`);
+      
+      // Pastikan payrolls selalu array, dan jika employee null, tetap return payroll
+      const safePayrolls = payrolls.map(p => ({ 
+        ...p, 
+        employee: p.employee || null 
+      }));
+      
+      res.json(safePayrolls);
+    } catch (tableError) {
+      console.error('Table payrolls error:', tableError);
+      // Jika tabel belum ada, return array kosong
+      res.json([]);
+    }
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error in /api/payrolls:', err);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: err instanceof Error ? err.message : 'Unknown error'
+    });
   }
 });
 
@@ -2883,7 +2950,13 @@ app.get('/api/department-nik-configs/check/:departmentName', async (req, res) =>
     });
     
     if (!department) {
-      return res.status(404).json({ error: 'Department tidak ditemukan' });
+      console.log(`Department '${departmentName}' tidak ditemukan`);
+      // Return empty config instead of 404
+      return res.json({
+        department: null,
+        nik_config: null,
+        has_config: false
+      });
     }
     
     console.log('Department found:', department);
