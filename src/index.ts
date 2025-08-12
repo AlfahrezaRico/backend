@@ -1912,7 +1912,19 @@ app.delete('/api/payrolls/:id', async (req, res) => {
   }
 });
 
-// CALCULATE payroll components
+/**
+ * CALCULATE payroll components
+ * 
+ * ALUR PERHITUNGAN:
+ * 1. Menerima basic_salary dari frontend (sudah termasuk tunjangan)
+ * 2. Mengambil data salary asli dari database untuk perhitungan BPJS
+ * 3. Menghitung komponen BPJS berdasarkan basic_salary murni
+ * 4. Menghitung breakdown pendapatan:
+ *    - pendapatan_tetap = basic_salary (gaji pokok)
+ *    - pendapatan_tidak_tetap = total_income (tunjangan)
+ *    - total_pendapatan = pendapatan_tetap + pendapatan_tidak_tetap
+ * 5. Mengirimkan breakdown lengkap ke frontend
+ */
 app.post('/api/payrolls/calculate', async (req, res) => {
   try {
     const { employee_id, basic_salary, manual_deductions } = req.body;
@@ -1994,6 +2006,13 @@ app.post('/api/payrolls/calculate', async (req, res) => {
     const totalDeduction = totalAutoDeduction + totalManualDeduction;
     const netSalary = totalPendapatan - totalDeduction;
 
+    // Breakdown pendapatan yang lengkap untuk frontend
+    const breakdownPendapatan = {
+      pendapatan_tetap: basicSalaryNumber,           // Gaji Pokok
+      pendapatan_tidak_tetap: totalIncome,           // Total Tunjangan
+      total_pendapatan: totalPendapatan              // Total keseluruhan
+    };
+
     const response = {
       calculated_components: calculated,
       totals: {
@@ -2002,10 +2021,14 @@ app.post('/api/payrolls/calculate', async (req, res) => {
         total_auto_deduction: totalAutoDeduction,
         total_manual_deduction: totalManualDeduction,
         total_deduction: totalDeduction,
-        total_pendapatan: totalPendapatan,
-        net_salary: netSalary
+        net_salary: netSalary,
+        // Breakdown pendapatan yang lengkap
+        pendapatan_tetap: breakdownPendapatan.pendapatan_tetap,
+        pendapatan_tidak_tetap: breakdownPendapatan.pendapatan_tidak_tetap,
+        total_pendapatan: breakdownPendapatan.total_pendapatan
       },
-      pure_basic_salary: pureBasicSalary
+      pure_basic_salary: pureBasicSalary,
+      breakdown_pendapatan: breakdownPendapatan
     };
 
     console.log('Backend calculation response:', response);
