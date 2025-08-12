@@ -48,6 +48,6 @@
         "@types/unzipper": "^0.10.11",
         "prisma": "^5.22.0",
         "ts-node-dev": "^2.0.0",
-        "typescript": "^5.8.3"
+        "typescript": "^5.9.2"
     }
 }

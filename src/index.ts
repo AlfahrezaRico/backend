@@ -2112,9 +2112,29 @@ app.post('/api/payrolls/calculate', async (req, res) => {
     const manualDeductions = manual_deductions || { kasbon: 0, telat: 0, angsuran_kredit: 0 };
     const totalManualDeduction = manualDeductions.kasbon + manualDeductions.telat + manualDeductions.angsuran_kredit;
     
+    // Breakdown pendapatan yang lengkap untuk frontend
+    // PENDAPATAN TETAP = Gaji Pokok + Komponen BPJS Company (income)
+    // PENDAPATAN TIDAK TETAP = Total Tunjangan (position, management, phone, incentive, overtime)
+    
+    // Hitung total tunjangan dari data salary
+    const totalTunjangan = (
+      Number(salaryData.position_allowance || 0) +
+      Number(salaryData.management_allowance || 0) +
+      Number(salaryData.phone_allowance || 0) +
+      Number(salaryData.incentive_allowance || 0) +
+      Number(salaryData.overtime_allowance || 0)
+    );
+    
+    // PENDAPATAN TETAP = Gaji Pokok + Komponen BPJS Company (income)
+    const pendapatanTetap = pureBasicSalary + totalIncome;
+    
+    // PENDAPATAN TIDAK TETAP = Total Tunjangan
+    const pendapatanTidakTetap = totalTunjangan;
+    
+    // TOTAL PENDAPATAN = Pendapatan Tetap + Pendapatan Tidak Tetap
+    const totalPendapatan = pendapatanTetap + pendapatanTidakTetap;
+    
     // Calculate final totals
-    // basicSalaryNumber dari frontend sudah termasuk tunjangan
-    const totalPendapatan = frontendBasicSalary;  // Total dari frontend (basic + allowances)
     const totalDeduction = totalAutoDeduction + totalManualDeduction;  // BPJS + Pajak + Manual
     const netSalary = totalPendapatan - totalDeduction;  // Total Pendapatan - Total Deduction
 
@@ -2130,21 +2150,18 @@ app.post('/api/payrolls/calculate', async (req, res) => {
     });
     
     console.log('Breakdown pendapatan calculation:', {
-      pendapatanTetap: pureBasicSalary + totalIncome,
-      pendapatanTidakTetap: totalPendapatan - pureBasicSalary,
-      totalPendapatanFinal: (pureBasicSalary + totalIncome) + (totalPendapatan - pureBasicSalary)
+      pendapatanTetap: pendapatanTetap,
+      pendapatanTidakTetap: pendapatanTidakTetap,
+      totalPendapatanFinal: totalPendapatan,
+      totalTunjangan: totalTunjangan,
+      pureBasicSalary: pureBasicSalary,
+      totalIncome: totalIncome
     });
-
-    // Breakdown pendapatan yang lengkap untuk frontend
-    // PENDAPATAN TETAP = Gaji Pokok + BPJS Company Contributions
-    // PENDAPATAN TIDAK TETAP = Allowances (position, management, phone, incentive, overtime)
-    const pendapatanTetap = pureBasicSalary + totalIncome; // Gaji Pokok + BPJS Company
-    const pendapatanTidakTetap = frontendBasicSalary - pureBasicSalary; // Total Tunjangan dari frontend
     
     const breakdownPendapatan = {
       pendapatan_tetap: pendapatanTetap,           // Gaji Pokok + BPJS Company
       pendapatan_tidak_tetap: pendapatanTidakTetap, // Total Tunjangan
-      total_pendapatan: frontendBasicSalary // Total dari frontend (basic + allowances)
+      total_pendapatan: totalPendapatan             // Total yang benar: Pendapatan Tetap + Pendapatan Tidak Tetap
     };
 
     const response = {
@@ -2157,9 +2174,9 @@ app.post('/api/payrolls/calculate', async (req, res) => {
         total_deduction: totalDeduction,
         net_salary: netSalary,
         // Breakdown pendapatan yang benar
-        pendapatan_tetap: breakdownPendapatan.pendapatan_tetap,           // Gaji Pokok + BPJS Company
-        pendapatan_tidak_tetap: breakdownPendapatan.pendapatan_tidak_tetap, // Total Tunjangan
-        total_pendapatan: breakdownPendapatan.total_pendapatan             // Total yang benar
+        pendapatan_tetap: pendapatanTetap,           // Gaji Pokok + BPJS Company
+        pendapatan_tidak_tetap: pendapatanTidakTetap, // Total Tunjangan
+        total_pendapatan: totalPendapatan             // Total yang benar: Pendapatan Tetap + Pendapatan Tidak Tetap
       },
       pure_basic_salary: pureBasicSalary,
       breakdown_pendapatan: breakdownPendapatan
