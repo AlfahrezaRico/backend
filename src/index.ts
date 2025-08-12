@@ -3382,6 +3382,37 @@ app.get('/api/salary', async (req, res) => {
   }
 });
 
+// Get salary by employee_id
+app.get('/api/salary/employee/:employee_id', async (req, res) => {
+  try {
+    const { employee_id } = req.params;
+    
+    const salaryData = await prisma.salary.findUnique({
+      where: { employee_id },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            position: true,
+            departemen: true
+          }
+        }
+      }
+    });
+    
+    if (!salaryData) {
+      return res.status(404).json({ error: 'Data gaji karyawan tidak ditemukan' });
+    }
+    
+    res.json(salaryData);
+  } catch (error) {
+    console.error('Error fetching salary data by employee_id:', error);
+    res.status(500).json({ error: 'Gagal mengambil data gaji karyawan' });
+  }
+});
+
 app.post('/api/salary', async (req, res) => {
   try {
     // Debug: Log the entire request body
@@ -3757,3 +3788,4 @@ app.post('/api/salary/bulk-upload', async (req, res) => {
 app.listen(port, () => {
   console.log("Server running on port", port);
 });
+
