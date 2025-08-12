@@ -1968,6 +1968,52 @@ app.put('/api/payrolls/:id', async (req, res) => {
   }
 });
 
+// PATCH payroll status (for marking as paid, etc.)
+app.patch('/api/payrolls/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    // Validate status
+    if (!status || !['PENDING', 'APPROVED', 'PAID', 'REJECTED', 'UNPAID'].includes(status)) {
+      return res.status(400).json({ 
+        error: 'Status tidak valid. Status yang diizinkan: PENDING, APPROVED, PAID, REJECTED, UNPAID' 
+      });
+    }
+    
+    // Check if payroll exists
+    const existingPayroll = await prisma.payrolls.findUnique({
+      where: { id }
+    });
+    
+    if (!existingPayroll) {
+      return res.status(404).json({ error: 'Payroll tidak ditemukan' });
+    }
+    
+    // Update status
+    const updatedPayroll = await prisma.payrolls.update({
+      where: { id },
+      data: { status },
+      include: { 
+        employee: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            email: true,
+            position: true
+          }
+        } 
+      }
+    });
+    
+    res.json(updatedPayroll);
+  } catch (err) {
+    console.error('Error updating payroll status:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // DELETE payroll
 app.delete('/api/payrolls/:id', async (req, res) => {
   try {
