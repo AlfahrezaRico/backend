@@ -2112,12 +2112,23 @@ app.post('/api/payrolls/calculate', async (req, res) => {
       totalPendapatan,
       netSalary
     });
+    
+    console.log('Breakdown pendapatan calculation:', {
+      pendapatanTetap: pureBasicSalary + totalIncome,
+      pendapatanTidakTetap: totalPendapatan - pureBasicSalary,
+      totalPendapatanFinal: (pureBasicSalary + totalIncome) + (totalPendapatan - pureBasicSalary)
+    });
 
     // Breakdown pendapatan yang lengkap untuk frontend
+    // PENDAPATAN TETAP = Gaji Pokok + BPJS Company Contributions
+    // PENDAPATAN TIDAK TETAP = Allowances (position, management, phone, incentive, overtime)
+    const pendapatanTetap = pureBasicSalary + totalIncome; // Gaji Pokok + BPJS Company
+    const pendapatanTidakTetap = totalPendapatan - pureBasicSalary; // Total Tunjangan dari salary
+    
     const breakdownPendapatan = {
-      pendapatan_tetap: pureBasicSalary,           // Gaji Pokok murni
-      pendapatan_tidak_tetap: totalPendapatan - pureBasicSalary,  // Total Tunjangan
-      total_pendapatan: totalPendapatan              // Total keseluruhan
+      pendapatan_tetap: pendapatanTetap,           // Gaji Pokok + BPJS Company
+      pendapatan_tidak_tetap: pendapatanTidakTetap, // Total Tunjangan
+      total_pendapatan: pendapatanTetap + pendapatanTidakTetap // Total yang benar
     };
 
     const response = {
@@ -2129,10 +2140,10 @@ app.post('/api/payrolls/calculate', async (req, res) => {
         total_manual_deduction: totalManualDeduction,
         total_deduction: totalDeduction,
         net_salary: netSalary,
-        // Breakdown pendapatan yang lengkap
-        pendapatan_tetap: breakdownPendapatan.pendapatan_tetap,
-        pendapatan_tidak_tetap: breakdownPendapatan.pendapatan_tidak_tetap,
-        total_pendapatan: breakdownPendapatan.total_pendapatan
+        // Breakdown pendapatan yang benar
+        pendapatan_tetap: breakdownPendapatan.pendapatan_tetap,           // Gaji Pokok + BPJS Company
+        pendapatan_tidak_tetap: breakdownPendapatan.pendapatan_tidak_tetap, // Total Tunjangan
+        total_pendapatan: breakdownPendapatan.total_pendapatan             // Total yang benar
       },
       pure_basic_salary: pureBasicSalary,
       breakdown_pendapatan: breakdownPendapatan
