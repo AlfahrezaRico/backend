@@ -1923,7 +1923,12 @@ app.delete('/api/payrolls/:id', async (req, res) => {
  *    - pendapatan_tetap = basic_salary (gaji pokok)
  *    - pendapatan_tidak_tetap = total_income (tunjangan)
  *    - total_pendapatan = pendapatan_tetap + pendapatan_tidak_tetap
- * 5. Mengirimkan breakdown lengkap ke frontend
+ * 5. Menghitung deductions:
+ *    - total_auto_deduction = BPJS + Pajak (otomatis)
+ *    - total_manual_deduction = Kasbon + Telat + Angsuran (manual)
+ *    - total_deduction = total_auto_deduction + total_manual_deduction
+ * 6. Net Salary = total_pendapatan - total_deduction
+ * 7. Mengirimkan breakdown lengkap ke frontend
  */
 app.post('/api/payrolls/calculate', async (req, res) => {
   try {
@@ -1997,14 +2002,14 @@ app.post('/api/payrolls/calculate', async (req, res) => {
       }
     });
 
-    // Calculate manual deductions
+    // Calculate manual deductions (harus mengurangi, bukan menambah)
     const manualDeductions = manual_deductions || { kasbon: 0, telat: 0, angsuran_kredit: 0 };
     const totalManualDeduction = manualDeductions.kasbon + manualDeductions.telat + manualDeductions.angsuran_kredit;
     
     // Calculate final totals
-    const totalPendapatan = basicSalaryNumber + totalIncome;
-    const totalDeduction = totalAutoDeduction + totalManualDeduction;
-    const netSalary = totalPendapatan - totalDeduction;
+    const totalPendapatan = basicSalaryNumber + totalIncome;  // Gaji Pokok + Tunjangan
+    const totalDeduction = totalAutoDeduction + totalManualDeduction;  // BPJS + Pajak + Manual
+    const netSalary = totalPendapatan - totalDeduction;  // Total Pendapatan - Total Deduction
 
     // Breakdown pendapatan yang lengkap untuk frontend
     const breakdownPendapatan = {
