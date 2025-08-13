@@ -1761,9 +1761,27 @@ app.get('/api/payrolls', async (req, res) => {
   try {
     console.log('Fetching payrolls...');
     
+    // Build where clause based on query parameters
+    let where: any = {};
+    
+    // Filter by employee_id if provided (for employee dashboard)
+    if (req.query.employee_id) {
+      const employee_id = Array.isArray(req.query.employee_id) 
+        ? req.query.employee_id[0] 
+        : req.query.employee_id as string;
+      where.employee_id = employee_id;
+      console.log(`Filtering payrolls for employee_id: ${employee_id}`);
+    }
+    
+    // Additional filters can be added here (status, date range, etc.)
+    if (req.query.status) {
+      where.status = req.query.status as string;
+    }
+    
     // Cek apakah tabel payrolls ada
     try {
       const payrolls = await prisma.payrolls.findMany({ 
+        where,
         include: { 
           employee: {
             select: {
@@ -1774,7 +1792,10 @@ app.get('/api/payrolls', async (req, res) => {
               position: true
             }
           } 
-        } 
+        },
+        orderBy: {
+          payment_date: 'desc'
+        }
       });
       
       console.log(`Found ${payrolls.length} payrolls`);
@@ -1804,8 +1825,22 @@ app.get('/api/payrolls', async (req, res) => {
 app.get('/api/payrolls/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const payroll = await prisma.payrolls.findUnique({ where: { id }, include: { employee: true } });
+    
+    // Get employee_id from query parameter if provided (for security check)
+    const requestingEmployeeId = req.query.employee_id as string | undefined;
+    
+    const payroll = await prisma.payrolls.findUnique({ 
+      where: { id }, 
+      include: { employee: true } 
+    });
+    
     if (!payroll) return res.status(404).json({ error: 'Payroll not found' });
+    
+    // If employee_id is provided, ensure they can only access their own payroll
+    if (requestingEmployeeId && payroll.employee_id !== requestingEmployeeId) {
+      return res.status(403).json({ error: 'Forbidden: You can only access your own payroll' });
+    }
+    
     res.json(payroll);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
