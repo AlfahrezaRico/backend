@@ -1891,6 +1891,60 @@ app.post('/api/payrolls', async (req, res) => {
       return res.status(400).json({ error: 'Karyawan tidak ditemukan' });
     }
 
+    // Server-side fallback calculation to ensure critical fields are populated
+    const basicSalaryNumber = Number(basic_salary) || 0;
+
+    // Ambil komponen payroll aktif untuk fallback perhitungan
+    const activeComponents = await prisma.payroll_components.findMany({ where: { is_active: true } });
+
+    const getComponentAmount = (componentName: string, expectedType: string): number => {
+      const comp = activeComponents.find(c => c.name === componentName && c.type === expectedType);
+      if (!comp) return 0;
+      const percentage = Number(comp.percentage) || 0;
+      const amount = Number(comp.amount) || 0;
+      if (percentage > 0) return (basicSalaryNumber * percentage) / 100;
+      if (amount > 0) return amount;
+      return 0;
+    };
+
+    // Fallback untuk komponen perusahaan (income)
+    const fb_bpjs_health_company = getComponentAmount('BPJS Kesehatan (Perusahaan)', 'income');
+    const fb_jht_company = getComponentAmount('BPJS Ketenagakerjaan JHT (Perusahaan)', 'income');
+    const fb_jkk_company = getComponentAmount('BPJS Ketenagakerjaan JKK (Perusahaan)', 'income');
+    const fb_jkm_company = getComponentAmount('BPJS Ketenagakerjaan JKM (Perusahaan)', 'income');
+    const fb_jp_company = getComponentAmount('BPJS Jaminan Pensiun (Perusahaan)', 'income');
+
+    // Fallback untuk komponen karyawan (deduction)
+    const fb_bpjs_health_employee = getComponentAmount('BPJS Kesehatan (Karyawan)', 'deduction');
+    const fb_jht_employee = getComponentAmount('BPJS Ketenagakerjaan JHT (Karyawan)', 'deduction');
+    const fb_jp_employee = getComponentAmount('BPJS Jaminan Pensiun (Karyawan)', 'deduction');
+
+    // Pakai nilai dari body jika ada; jika 0/null, pakai fallback
+    const resolved_bpjs_health_company = parseFloat(bpjs_health_company || 0) || fb_bpjs_health_company;
+    const resolved_jht_company = parseFloat(jht_company || 0) || fb_jht_company;
+    const resolved_jkk_company = parseFloat(jkk_company || 0) || fb_jkk_company;
+    const resolved_jkm_company = parseFloat(jkm_company || 0) || fb_jkm_company;
+    const resolved_jp_company = parseFloat(jp_company || 0) || fb_jp_company;
+
+    const resolved_bpjs_health_employee = parseFloat(bpjs_health_employee || 0) || fb_bpjs_health_employee;
+    const resolved_jht_employee = parseFloat(jht_employee || 0) || fb_jht_employee;
+    const resolved_jp_employee = parseFloat(jp_employee || 0) || fb_jp_employee;
+
+    const subtotalCompanyCalc = resolved_bpjs_health_company + resolved_jht_company + resolved_jkk_company + resolved_jkm_company + resolved_jp_company;
+    const subtotalEmployeeCalc = resolved_bpjs_health_employee + resolved_jht_employee + resolved_jp_employee;
+
+    const resolved_subtotal_company = parseFloat(subtotal_company || 0) || subtotalCompanyCalc;
+    const resolved_subtotal_employee = parseFloat(subtotal_employee || 0) || subtotalEmployeeCalc;
+
+    const resolved_bpjs_company = parseFloat(bpjs_company || 0) || resolved_subtotal_company;
+    const resolved_bpjs_employee_total = parseFloat(bpjs_employee || 0) || resolved_subtotal_employee;
+
+    const resolved_total_allowances = parseFloat(total_allowances || 0);
+    const resolved_total_pendapatan = parseFloat(total_pendapatan || 0) || (basicSalaryNumber + resolved_total_allowances + resolved_subtotal_company);
+
+    const resolved_total_deductions = parseFloat(total_deductions || 0) || (resolved_subtotal_employee + parseFloat(kasbon || 0) + parseFloat(telat || 0) + parseFloat(angsuran_kredit || 0));
+    const resolved_deductions_legacy = parseFloat(deductions || 0) || resolved_total_deductions;
+
     const data = {
       employee_id,
       pay_period_start: new Date(pay_period_start),
@@ -1907,21 +1961,21 @@ app.post('/api/payrolls', async (req, res) => {
       phone_allowance: parseFloat(phone_allowance || 0),
       incentive_allowance: parseFloat(incentive_allowance || 0),
       overtime_allowance: parseFloat(overtime_allowance || 0),
-      total_allowances: parseFloat(total_allowances || 0),
+      total_allowances: resolved_total_allowances,
       
       // Komponen Payroll yang Dihitung - Perusahaan (PENDAPATAN TETAP)
-      bpjs_health_company: parseFloat(bpjs_health_company || 0),
-      jht_company: parseFloat(jht_company || 0),
-      jkk_company: parseFloat(jkk_company || 0),
-      jkm_company: parseFloat(jkm_company || 0),
-      jp_company: parseFloat(jp_company || 0),
-      subtotal_company: parseFloat(subtotal_company || 0),
+      bpjs_health_company: resolved_bpjs_health_company,
+      jht_company: resolved_jht_company,
+      jkk_company: resolved_jkk_company,
+      jkm_company: resolved_jkm_company,
+      jp_company: resolved_jp_company,
+      subtotal_company: resolved_subtotal_company,
       
       // Komponen Payroll yang Dihitung - Karyawan (POTONGAN)
-      bpjs_health_employee: parseFloat(bpjs_health_employee || 0),
-      jht_employee: parseFloat(jht_employee || 0),
-      jp_employee: parseFloat(jp_employee || 0),
-      subtotal_employee: parseFloat(subtotal_employee || 0),
+      bpjs_health_employee: resolved_bpjs_health_employee,
+      jht_employee: resolved_jht_employee,
+      jp_employee: resolved_jp_employee,
+      subtotal_employee: resolved_subtotal_employee,
       
       // Deductions Manual
       kasbon: parseFloat(kasbon || 0),
@@ -1929,17 +1983,17 @@ app.post('/api/payrolls', async (req, res) => {
       angsuran_kredit: parseFloat(angsuran_kredit || 0),
       
       // Total Deductions
-      total_deductions: parseFloat(total_deductions || 0),
+      total_deductions: resolved_total_deductions,
       
       // Total Pendapatan (Gaji + Tunjangan + BPJS Perusahaan)
-      total_pendapatan: parseFloat(total_pendapatan || 0),
+      total_pendapatan: resolved_total_pendapatan,
       
       // Additional fields untuk database schema
-      bpjs_employee: parseFloat(bpjs_employee || 0),
-      bpjs_company: parseFloat(bpjs_company || 0),
-      jkk: parseFloat(jkk || 0),
-      jkm: parseFloat(jkm || 0),
-      deductions: parseFloat(deductions || 0),
+      bpjs_employee: resolved_bpjs_employee_total,
+      bpjs_company: resolved_bpjs_company,
+      jkk: parseFloat(jkk || 0) || resolved_jkk_company,
+      jkm: parseFloat(jkm || 0) || resolved_jkm_company,
+      deductions: resolved_deductions_legacy,
       
       // Additional fields
       created_by: created_by || null,
