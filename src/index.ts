@@ -1732,9 +1732,6 @@ const payrollSchema = z.object({
   jp_employee: z.number().optional(),
   subtotal_employee: z.number().optional(),
   
-  // Pajak
-  pph21: z.number().optional(),
-  
   // Deductions Manual
   kasbon: z.number().optional(),
   telat: z.number().optional(),
@@ -1850,9 +1847,6 @@ app.post('/api/payrolls', async (req, res) => {
       jp_employee,
       subtotal_employee,
       
-      // Pajak
-      pph21,
-      
       // Deductions Manual
       kasbon,
       telat,
@@ -1904,8 +1898,8 @@ app.post('/api/payrolls', async (req, res) => {
       basic_salary: parseFloat(basic_salary || 0),
       gross_salary: parseFloat(gross_salary),
       net_salary: parseFloat(net_salary),
-      payment_date: payment_date ? new Date(payment_date) : null,
-      status: status || 'PENDING',
+      payment_date: new Date(payment_date),
+      status,
       
       // Tunjangan dari Data Salary
       position_allowance: parseFloat(position_allowance || 0),
@@ -1929,9 +1923,6 @@ app.post('/api/payrolls', async (req, res) => {
       jp_employee: parseFloat(jp_employee || 0),
       subtotal_employee: parseFloat(subtotal_employee || 0),
       
-      // Pajak
-      pph21: parseFloat(pph21 || 0),
-      
       // Deductions Manual
       kasbon: parseFloat(kasbon || 0),
       telat: parseFloat(telat || 0),
@@ -1951,9 +1942,9 @@ app.post('/api/payrolls', async (req, res) => {
       deductions: parseFloat(deductions || 0),
       
       // Additional fields
-      created_by,
-      approved_by,
-      approved_at
+      created_by: created_by || null,
+      approved_by: approved_by || null,
+      approved_at: approved_at ? new Date(approved_at) : null
     };
 
     console.log('Processed payroll data:', data);

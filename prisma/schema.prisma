@@ -140,8 +140,7 @@ model payrolls {
   jp_employee            Decimal? @db.Decimal(15, 2)
   subtotal_employee      Decimal? @db.Decimal(15, 2)  // SUB TOTAL (Potongan Karyawan)
   
-  // Pajak
-  pph21                  Decimal? @db.Decimal(15, 2)
+  // Pajak (di-nonaktifkan)
   
   // Deductions Manual
   kasbon                 Decimal? @db.Decimal(15, 2)
