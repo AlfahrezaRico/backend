@@ -1746,6 +1746,13 @@ const payrollSchema = z.object({
   // Total Pendapatan (Gaji + Tunjangan + BPJS Perusahaan)
   total_pendapatan: z.number().optional(),
   
+  // Additional fields untuk database schema
+  bpjs_employee: z.number().optional(),
+  bpjs_company: z.number().optional(),
+  jkk: z.number().optional(),
+  jkm: z.number().optional(),
+  deductions: z.number().optional(),
+  
   // Additional fields
   created_by: z.string().uuid().optional(),
   approved_by: z.string().uuid().optional(),
@@ -1857,6 +1864,13 @@ app.post('/api/payrolls', async (req, res) => {
       // Total Pendapatan (Gaji + Tunjangan + BPJS Perusahaan)
       total_pendapatan,
       
+      // Additional fields untuk database schema
+      bpjs_employee,
+      bpjs_company,
+      jkk,
+      jkm,
+      deductions,
+      
       // Additional fields
       created_by,
       approved_by,
@@ -1928,6 +1942,13 @@ app.post('/api/payrolls', async (req, res) => {
       
       // Total Pendapatan (Gaji + Tunjangan + BPJS Perusahaan)
       total_pendapatan: parseFloat(total_pendapatan || 0),
+      
+      // Additional fields untuk database schema
+      bpjs_employee: parseFloat(bpjs_employee || 0),
+      bpjs_company: parseFloat(bpjs_company || 0),
+      jkk: parseFloat(jkk || 0),
+      jkm: parseFloat(jkm || 0),
+      deductions: parseFloat(deductions || 0),
       
       // Additional fields
       created_by,
