@@ -163,6 +163,12 @@ model payrolls {
   approved_at            DateTime? @db.Timestamptz(6)
   updated_at             DateTime? @db.Timestamptz(6)
   
+  // Field yang hilang dari schema sebelumnya
+  bpjs_employee          Decimal? @db.Decimal(15, 2)
+  bpjs_company           Decimal? @db.Decimal(15, 2)
+  jkk                    Decimal? @db.Decimal(15, 2)
+  jkm                    Decimal? @db.Decimal(15, 2)
+  
   employee               employees @relation(fields: [employee_id], references: [id])
 }
 
