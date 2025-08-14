@@ -1608,20 +1608,27 @@ app.post('/api/employees/bulk', async (req, res) => {
       }
     } catch {}
 
+    // Sanitasi panjang string agar tidak melebihi batas kolom database
+    const clamp = (val: any, max: number) => {
+      if (val === null || val === undefined) return undefined;
+      const s = String(val);
+      return s.length > max ? s.slice(0, max) : s;
+    };
+
     const employeeData = Object.fromEntries(Object.entries({
-      first_name: emp.first_name,
-      last_name: emp.last_name || '',
-      email: emp.email,
-      phone_number: emp.phone_number,
-      position: emp.position,
-      hire_date: hireDateObj, // PATCH: boleh undefined/null
-      bank_account_number: emp.bank_account_number || '',
-      address: emp.address || '',
+      first_name: clamp(emp.first_name, 255),
+      last_name: clamp(emp.last_name || '', 255),
+      email: clamp(emp.email, 255),
+      phone_number: clamp(emp.phone_number, 20),
+      position: clamp(emp.position, 255),
+      hire_date: hireDateObj, // boleh undefined/null
+      bank_account_number: clamp(emp.bank_account_number || '', 50),
+      address: emp.address || '', // TEXT tanpa batas
       date_of_birth: dateOfBirthObj,
       departemen_id: departemenId,
-      nik: nikVal,
+      nik: nikVal ? clamp(nikVal, 20) : undefined,
       status_employees: statusEmployeesId,
-      bank_name: emp.bank_name || undefined,
+      bank_name: clamp(emp.bank_name, 50),
       user_id: user.id
     }).filter(([_, v]) => v !== undefined && v !== null));
     try {
@@ -1641,8 +1648,24 @@ app.post('/api/employees/bulk', async (req, res) => {
       // Update employee_id di tabel users
       await prisma.users.update({ where: { id: user.id }, data: { employee_id: created.id } });
       results.push({ success: true, emp: created });
-    } catch (err) {
-      results.push({ success: false, emp, error: err instanceof Error ? err.message : String(err) });
+    } catch (err: any) {
+      // Normalisasi error Prisma agar lebih ramah dibaca frontend
+      const prettyError = (() => {
+        const code = err?.code;
+        const msg: string = String(err?.message || 'Terjadi kesalahan');
+        const column = err?.meta?.column_name || err?.meta?.target || undefined;
+        if (code === 'P2000' || msg.toLowerCase().includes('too long')) {
+          return `Nilai terlalu panjang untuk kolom${column ? ` ${column}` : ''}. Cek batas: phone_number (20), nik (20), bank_account_number (50), bank_name (50), first_name/last_name/position/email (255).`;
+        }
+        if (code === 'P2002' || msg.toLowerCase().includes('unique')) {
+          return `Data duplikat pada kolom unik${column ? ` ${column}` : ''} (contoh: email/nik).`;
+        }
+        if (code === 'P2003' || msg.toLowerCase().includes('foreign key')) {
+          return `Relasi tidak valid${column ? ` pada kolom ${column}` : ''} (contoh: departemen/status tidak ditemukan).`;
+        }
+        return msg;
+      })();
+      results.push({ success: false, emp, error: prettyError });
     }
   }
   const failed = results.filter(r => !r.success);
