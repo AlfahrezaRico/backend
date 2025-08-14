@@ -1650,7 +1650,7 @@ app.post('/api/employees/bulk', async (req, res) => {
       results.push({ success: true, emp: created });
     } catch (err: any) {
       // Normalisasi error Prisma agar lebih ramah dibaca frontend
-      const prettyError = (() => {
+      let prettyError = (() => {
         const code = err?.code;
         const msg: string = String(err?.message || 'Terjadi kesalahan');
         const column = err?.meta?.column_name || err?.meta?.target || undefined;
@@ -1665,6 +1665,35 @@ app.post('/api/employees/bulk', async (req, res) => {
         }
         return msg;
       })();
+
+      // Jika kolom tidak tersedia dari driver, coba tebak field yang melebihi batas dari payload CSV
+      const msgLower = String(prettyError).toLowerCase();
+      if (msgLower.includes('terlalu panjang') && msgLower.includes('(not available)')) {
+        const raw = emp || {};
+        const rawNik = raw.nik;
+        // Batas kolom sesuai schema
+        const LIMITS: Record<string, number> = {
+          first_name: 255,
+          last_name: 255,
+          email: 255,
+          phone_number: 20,
+          position: 255,
+          bank_account_number: 50,
+          bank_name: 50,
+          nik: 20,
+        };
+        const viols: string[] = [];
+        Object.entries(LIMITS).forEach(([key, limit]) => {
+          const v = key === 'nik' ? rawNik : (raw as any)[key];
+          if (v !== undefined && v !== null) {
+            const s = String(v).trim();
+            if (s.length > limit) viols.push(`${key}(${s.length}>${limit})`);
+          }
+        });
+        if (viols.length > 0) {
+          prettyError = `Nilai terlalu panjang pada: ${viols.join(', ')}. Mohon perpendek sesuai batas.`;
+        }
+      }
       results.push({ success: false, emp, error: prettyError });
     }
   }
