@@ -1550,6 +1550,37 @@ app.post('/api/employees/bulk', async (req, res) => {
       continue;
     }
 
+    // Tentukan departemen_id berdasarkan nama departemen di CSV (jika ada)
+    let departemenId: string | undefined = undefined;
+    try {
+      const departments = await prisma.departemen.findMany();
+      if (emp.department) {
+        const target = String(emp.department).trim().toLowerCase();
+        const found = departments.find(d => d.nama.trim().toLowerCase() === target);
+        if (found) departemenId = found.id;
+      }
+      if (!departemenId && departments.length > 0) {
+        departemenId = departments[0].id; // fallback
+      }
+    } catch {}
+
+    // Tentukan NIK: pakai dari CSV jika ada; jika kosong, generate dari config departemen (jika tersedia)
+    let nikVal: string | undefined = (emp.nik && String(emp.nik).trim() !== '') ? String(emp.nik).trim() : undefined;
+    if (!nikVal && departemenId) {
+      const nikCfg = await prisma.department_nik_config.findFirst({ where: { department_id: departemenId, is_active: true } });
+      if (nikCfg) {
+        const seq = String(nikCfg.current_sequence).padStart(nikCfg.sequence_length, '0');
+        if (nikCfg.format_pattern && nikCfg.format_pattern.includes('{prefix}') && nikCfg.format_pattern.includes('{sequence}')) {
+          nikVal = nikCfg.format_pattern.replace('{prefix}', nikCfg.prefix).replace('{sequence}', seq);
+        } else {
+          nikVal = `${nikCfg.prefix}${seq}`;
+        }
+        await prisma.department_nik_config.update({ where: { id: nikCfg.id }, data: { current_sequence: nikCfg.current_sequence + 1 } });
+      } else {
+        nikVal = `EMP${Date.now().toString().slice(-6)}`;
+      }
+    }
+
     const employeeData = Object.fromEntries(Object.entries({
       first_name: emp.first_name,
       last_name: emp.last_name || '',
@@ -1560,11 +1591,24 @@ app.post('/api/employees/bulk', async (req, res) => {
       bank_account_number: emp.bank_account_number || '',
       address: emp.address || '',
       date_of_birth: dateOfBirthObj,
+      departemen_id: departemenId,
+      nik: nikVal,
       bank_name: emp.bank_name || undefined,
       user_id: user.id
     }).filter(([_, v]) => v !== undefined && v !== null));
     try {
-      const created = await prisma.employees.create({ data: employeeData as any });
+      let created;
+      try {
+        created = await prisma.employees.create({ data: employeeData as any });
+      } catch (e: any) {
+        // fallback kalau NIK bentrok
+        if (String(e?.message || '').toLowerCase().includes('unique') && (employeeData as any)?.nik) {
+          (employeeData as any).nik = `EMP${Date.now().toString().slice(-8)}`;
+          created = await prisma.employees.create({ data: employeeData as any });
+        } else {
+          throw e;
+        }
+      }
       // Update employee_id di tabel users
       await prisma.users.update({ where: { id: user.id }, data: { employee_id: created.id } });
       results.push({ success: true, emp: created });
