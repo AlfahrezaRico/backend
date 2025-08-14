@@ -1926,6 +1926,38 @@ app.post('/api/payrolls', async (req, res) => {
       return res.status(400).json({ error: 'Karyawan tidak ditemukan' });
     }
 
+		// Guard: larang duplikasi payroll pada bulan yang sama untuk karyawan yang sama (berdasarkan payment_date)
+		try {
+			const payDate = new Date(payment_date);
+			const monthStart = new Date(payDate.getFullYear(), payDate.getMonth(), 1);
+			const monthEnd = new Date(payDate.getFullYear(), payDate.getMonth() + 1, 0);
+
+			const existingSameMonth = await prisma.payrolls.findFirst({
+				where: {
+					employee_id,
+					payment_date: {
+						gte: monthStart,
+						lte: monthEnd
+					}
+				}
+			});
+
+			if (existingSameMonth) {
+				return res.status(409).json({
+					error: 'Duplikasi payroll pada bulan yang sama tidak diperbolehkan',
+					details: {
+						employee_id,
+						month: payDate.getMonth() + 1,
+						year: payDate.getFullYear(),
+						existing_payment_date: existingSameMonth.payment_date
+					}
+				});
+			}
+		} catch (guardErr) {
+			console.error('Error validating monthly uniqueness:', guardErr);
+			return res.status(500).json({ error: 'Gagal memvalidasi duplikasi bulanan' });
+		}
+
     // Server-side fallback calculation to ensure critical fields are populated
     const basicSalaryNumber = Number(basic_salary) || 0;
 
