@@ -4040,20 +4040,19 @@ app.post('/api/salary/bulk-upload', async (req, res) => {
 
     for (const item of salaryData) {
       try {
-        const { 
-          employee_id, 
-          nik, 
-          basic_salary, 
-          position_allowance, 
-          management_allowance, 
-          phone_allowance, 
-          incentive_allowance, 
-          overtime_allowance 
+        const {
+          nik,
+          basic_salary,
+          position_allowance,
+          management_allowance,
+          phone_allowance,
+          incentive_allowance,
+          overtime_allowance
         } = item;
 
-        // Validate required fields
-        if (!employee_id || !nik || !basic_salary) {
-          errors.push({ row: item, error: 'Employee ID, NIK, dan Basic Salary wajib diisi' });
+        // Validate required fields: nik + basic_salary
+        if (!nik || !basic_salary) {
+          errors.push({ row: item, error: 'NIK dan Basic Salary wajib diisi' });
           continue;
         }
 
@@ -4089,20 +4088,17 @@ app.post('/api/salary/bulk-upload', async (req, res) => {
           continue;
         }
 
-        // Check if employee exists
-        const employee = await prisma.employees.findUnique({
-          where: { id: employee_id }
-        });
+        // Resolve employee_id by NIK (case-insensitive trim)
+        const nikTrim = String(nik).trim();
+        const employee = await prisma.employees.findFirst({ where: { nik: nikTrim } });
 
         if (!employee) {
-          errors.push({ row: item, error: 'Karyawan tidak ditemukan' });
+          errors.push({ row: item, error: `Karyawan dengan NIK ${nikTrim} tidak ditemukan` });
           continue;
         }
 
         // Check if salary record already exists for this employee
-        const existingSalary = await prisma.salary.findUnique({
-          where: { employee_id }
-        });
+        const existingSalary = await prisma.salary.findUnique({ where: { employee_id: employee.id } });
 
         if (existingSalary) {
           errors.push({ row: item, error: 'Data gaji untuk karyawan ini sudah ada' });
@@ -4112,8 +4108,8 @@ app.post('/api/salary/bulk-upload', async (req, res) => {
         // Create salary record
         const salary = await prisma.salary.create({
           data: {
-            employee_id,
-            nik,
+            employee_id: employee.id,
+            nik: nikTrim,
             basic_salary: parseFloat(basic_salary),
             position_allowance: position_allowance ? parseFloat(position_allowance) : null,
             management_allowance: management_allowance ? parseFloat(management_allowance) : null,
