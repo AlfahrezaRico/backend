@@ -494,6 +494,15 @@ app.get('/api/employees', async (req, res) => {
           (employee as any).departemen = null;
         }
       }
+      // Tambahkan label status kontrak jika ada
+      try {
+        if ((employee as any).status_employees) {
+          const st = await (prisma as any).jenis_status_employees.findUnique({ where: { id: (employee as any).status_employees } });
+          (employee as any).status_label = st?.name || null;
+        } else {
+          (employee as any).status_label = null;
+        }
+      } catch {}
       
       console.log('Found employee:', employee.id);
       return res.json(employee);
@@ -567,6 +576,19 @@ app.get('/api/employees', async (req, res) => {
         });
       }
     }
+    // Tambahkan label status kontrak untuk seluruh employees
+    try {
+      const statusIds = [...new Set(employees.map((e: any) => e.status_employees).filter((id: any) => id))];
+      if (statusIds.length > 0) {
+        const statusRows = await (prisma as any).jenis_status_employees.findMany({ where: { id: { in: statusIds } } });
+        const statusMap = new Map(statusRows.map((s: any) => [s.id, s.name]));
+        employees.forEach((e: any) => {
+          e.status_label = e.status_employees ? statusMap.get(e.status_employees) || null : null;
+        });
+      } else {
+        employees.forEach((e: any) => { (e as any).status_label = null; });
+      }
+    } catch {}
     
     console.log('First employee sample:', employees[0] ? {
       id: employees[0].id,
