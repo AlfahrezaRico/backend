@@ -1564,21 +1564,25 @@ app.post('/api/employees/bulk', async (req, res) => {
       }
     } catch {}
 
-    // Tentukan NIK: pakai dari CSV jika ada; jika kosong, generate dari config departemen (jika tersedia)
-    let nikVal: string | undefined = (emp.nik && String(emp.nik).trim() !== '') ? String(emp.nik).trim() : undefined;
-    if (!nikVal && departemenId) {
+    // NIK: fleksibel sesuai permintaan
+    // - Jika CSV mengisi nik (apa pun isinya), terima apa adanya (trim)
+    // - Jika kosong: coba generate dari config departemen; jika tidak ada config, pakai default EMP + timestamp
+    let nikVal: string | undefined = undefined;
+    if (emp.nik !== undefined && emp.nik !== null && String(emp.nik).trim() !== '') {
+      nikVal = String(emp.nik).trim();
+    } else if (departemenId) {
       const nikCfg = await prisma.department_nik_config.findFirst({ where: { department_id: departemenId, is_active: true } });
       if (nikCfg) {
         const seq = String(nikCfg.current_sequence).padStart(nikCfg.sequence_length, '0');
-        if (nikCfg.format_pattern && nikCfg.format_pattern.includes('{prefix}') && nikCfg.format_pattern.includes('{sequence}')) {
-          nikVal = nikCfg.format_pattern.replace('{prefix}', nikCfg.prefix).replace('{sequence}', seq);
-        } else {
-          nikVal = `${nikCfg.prefix}${seq}`;
-        }
+        nikVal = nikCfg.format_pattern && nikCfg.format_pattern.includes('{prefix}') && nikCfg.format_pattern.includes('{sequence}')
+          ? nikCfg.format_pattern.replace('{prefix}', nikCfg.prefix).replace('{sequence}', seq)
+          : `${nikCfg.prefix}${seq}`;
         await prisma.department_nik_config.update({ where: { id: nikCfg.id }, data: { current_sequence: nikCfg.current_sequence + 1 } });
       } else {
         nikVal = `EMP${Date.now().toString().slice(-6)}`;
       }
+    } else {
+      nikVal = `EMP${Date.now().toString().slice(-6)}`;
     }
 
     const employeeData = Object.fromEntries(Object.entries({
@@ -1601,8 +1605,9 @@ app.post('/api/employees/bulk', async (req, res) => {
       try {
         created = await prisma.employees.create({ data: employeeData as any });
       } catch (e: any) {
-        // fallback kalau NIK bentrok
-        if (String(e?.message || '').toLowerCase().includes('unique') && (employeeData as any)?.nik) {
+        // fallback jika unik bentrok saja
+        const msg = String(e?.message || '').toLowerCase();
+        if (msg.includes('unique') && (employeeData as any)?.nik) {
           (employeeData as any).nik = `EMP${Date.now().toString().slice(-8)}`;
           created = await prisma.employees.create({ data: employeeData as any });
         } else {
