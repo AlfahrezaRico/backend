@@ -1550,17 +1550,34 @@ app.post('/api/employees/bulk', async (req, res) => {
       continue;
     }
 
-    // Tentukan departemen_id berdasarkan nama departemen di CSV (jika ada)
+    // Tentukan departemen_id berdasarkan nama departemen di CSV (mendukung beberapa alias)
     let departemenId: string | undefined = undefined;
     try {
       const departments = await prisma.departemen.findMany();
-      if (emp.department) {
-        const target = String(emp.department).trim().toLowerCase();
-        const found = departments.find(d => d.nama.trim().toLowerCase() === target);
-        if (found) departemenId = found.id;
-      }
-      if (!departemenId && departments.length > 0) {
-        departemenId = departments[0].id; // fallback
+      const rawDept = [
+        (emp as any).department,
+        (emp as any).departement, // ejaan umum
+        (emp as any).departemen,   // ejaan ID
+        (emp as any).dept,
+        (emp as any).department_name,
+        (emp as any).departemen_name,
+      ].find((v: any) => v !== undefined && v !== null && String(v).trim() !== '');
+
+      if (rawDept) {
+        const target = String(rawDept).trim().toLowerCase();
+        const found = departments.find(d => (d.nama || '').trim().toLowerCase() === target);
+        if (found) {
+          departemenId = found.id;
+        } else {
+          // Jika CSV mengisi departemen tapi tidak cocok dengan yang ada di DB, kembalikan error yang jelas
+          results.push({ success: false, emp, error: `Departemen "${rawDept}" tidak ditemukan di sistem. Pastikan namanya persis sama.` });
+          continue;
+        }
+      } else {
+        // Jika CSV tidak mengisi departemen sama sekali, fallback ke departemen pertama bila ada
+        if (departments.length > 0) {
+          departemenId = departments[0].id;
+        }
       }
     } catch {}
 
