@@ -1585,6 +1585,29 @@ app.post('/api/employees/bulk', async (req, res) => {
       nikVal = `EMP${Date.now().toString().slice(-6)}`;
     }
 
+    // Map status_employees dari CSV ke id jenis_status_employees
+    let statusEmployeesId: string | undefined = undefined;
+    try {
+      const statusRaw = [
+        emp.status_employees,
+        emp.jenis_status_employees,
+        emp.status,
+        emp.jenis_status
+      ].find((v: any) => v !== undefined && v !== null && String(v).trim() !== '');
+      if (statusRaw) {
+        const statusName = String(statusRaw).trim().toUpperCase();
+        // Catatan: model prisma mengikuti nama tabel plural/snake-case -> camelCase
+        let statusRow = await (prisma as any).jenis_status_employees.findFirst({ where: { name: statusName } });
+        // Auto-create untuk nilai standar jika belum ada
+        if (!statusRow && (statusName === 'PKWT' || statusName === 'PKWTT')) {
+          try {
+            statusRow = await (prisma as any).jenis_status_employees.create({ data: { name: statusName } });
+          } catch {}
+        }
+        if (statusRow) statusEmployeesId = statusRow.id;
+      }
+    } catch {}
+
     const employeeData = Object.fromEntries(Object.entries({
       first_name: emp.first_name,
       last_name: emp.last_name || '',
@@ -1597,6 +1620,7 @@ app.post('/api/employees/bulk', async (req, res) => {
       date_of_birth: dateOfBirthObj,
       departemen_id: departemenId,
       nik: nikVal,
+      status_employees: statusEmployeesId,
       bank_name: emp.bank_name || undefined,
       user_id: user.id
     }).filter(([_, v]) => v !== undefined && v !== null));
