@@ -1486,19 +1486,43 @@ app.post('/api/employees/bulk', async (req, res) => {
   }
   const results = [];
   for (const emp of employees) {
+    // Helper: parse beberapa format tanggal (YYYY-MM-DD atau DD/MM/YYYY)
+    const parseFlexibleDate = (val: any): Date | undefined => {
+      if (val === null || val === undefined) return undefined;
+      const raw = String(val).trim();
+      if (raw === '') return undefined;
+      // DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY
+      const dmy = raw.match(/^([0-3]?\d)[\/\.\-]([0-1]?\d)[\/\.\-](\d{4})$/);
+      if (dmy) {
+        const dd = Number(dmy[1]);
+        const mm = Number(dmy[2]) - 1; // zero-based
+        const yyyy = Number(dmy[3]);
+        const d = new Date(yyyy, mm, dd);
+        return isNaN(d.getTime()) ? undefined : d;
+      }
+      // YYYY-MM-DD
+      const ymd = raw.match(/^(\d{4})-([0-1]?\d)-([0-3]?\d)$/);
+      if (ymd) {
+        const yyyy = Number(ymd[1]);
+        const mm = Number(ymd[2]) - 1;
+        const dd = Number(ymd[3]);
+        const d = new Date(yyyy, mm, dd);
+        return isNaN(d.getTime()) ? undefined : d;
+      }
+      // Fallback: biarkan Date men-parse bila format lain masih valid
+      const d = new Date(raw);
+      return isNaN(d.getTime()) ? undefined : d;
+    };
     // Validasi kolom wajib
     if (!emp.first_name || !emp.email || !emp.phone_number || !emp.position) {
       results.push({ success: false, emp, error: 'Kolom wajib: first_name, email, phone_number, position.' });
       continue;
     }
-    // PATCH: hire_date tidak wajib, validasi hanya jika ada isinya
-    let hireDateObj = undefined;
-    if (emp.hire_date && String(emp.hire_date).trim() !== "") {
-      hireDateObj = new Date(emp.hire_date);
-      if (isNaN(hireDateObj.getTime())) {
-        results.push({ success: false, emp, error: 'Format hire_date tidak valid (YYYY-MM-DD).'});
-        continue;
-      }
+    // PATCH: hire_date tidak wajib, validasi hanya jika ada isinya (dukung DD/MM/YYYY)
+    const hireDateObj = parseFlexibleDate(emp.hire_date);
+    if (emp.hire_date && !hireDateObj) {
+      results.push({ success: false, emp, error: 'Format hire_date tidak valid (YYYY-MM-DD atau DD/MM/YYYY).'});
+      continue;
     }
     // Cari user berdasarkan email
     const user = await prisma.users.findFirst({ where: { email: emp.email } });
@@ -1520,6 +1544,12 @@ app.post('/api/employees/bulk', async (req, res) => {
       continue;
     }
     // Build data employee tanpa field undefined/null
+    const dateOfBirthObj = parseFlexibleDate(emp.date_of_birth);
+    if (emp.date_of_birth && !dateOfBirthObj) {
+      results.push({ success: false, emp, error: 'Format date_of_birth tidak valid (YYYY-MM-DD atau DD/MM/YYYY).'});
+      continue;
+    }
+
     const employeeData = Object.fromEntries(Object.entries({
       first_name: emp.first_name,
       last_name: emp.last_name || '',
@@ -1529,7 +1559,7 @@ app.post('/api/employees/bulk', async (req, res) => {
       hire_date: hireDateObj, // PATCH: boleh undefined/null
       bank_account_number: emp.bank_account_number || '',
       address: emp.address || '',
-      date_of_birth: emp.date_of_birth && String(emp.date_of_birth).trim() !== '' ? String(emp.date_of_birth).slice(0, 10) : undefined,
+      date_of_birth: dateOfBirthObj,
       bank_name: emp.bank_name || undefined,
       user_id: user.id
     }).filter(([_, v]) => v !== undefined && v !== null));
