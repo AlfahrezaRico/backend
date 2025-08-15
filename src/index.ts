@@ -461,7 +461,8 @@ app.post('/api/auth/lucia-logout', async (req, res) => {
 app.get('/api/employees', async (req, res) => {
   try {
     const includeDepartemen = req.query.include_departemen === '1';
-    console.log('Fetching employees with includeDepartemen:', includeDepartemen);
+    const withoutSalary = req.query.without_salary === '1';
+    console.log('Fetching employees with includeDepartemen:', includeDepartemen, 'withoutSalary:', withoutSalary);
     
     if (req.query.user_id) {
       const user_id = Array.isArray(req.query.user_id) ? req.query.user_id[0] : req.query.user_id as string;
@@ -509,9 +510,21 @@ app.get('/api/employees', async (req, res) => {
     }
     
     console.log('Fetching all employees...');
-    const employees = await prisma.employees.findMany({
+    let employees = await prisma.employees.findMany({
       orderBy: { first_name: 'asc' }
     });
+    
+    // If withoutSalary flag is set, filter out employees who already have salary data
+    if (withoutSalary) {
+      console.log('Filtering employees without salary data');
+      const salaryRecords = await prisma.salary.findMany({
+        select: { employee_id: true }
+      });
+      
+      const employeeIdsWithSalary = new Set(salaryRecords.map(s => s.employee_id));
+      employees = employees.filter(emp => !employeeIdsWithSalary.has(emp.id));
+      console.log('Filtered employees count:', employees.length);
+    }
     
     console.log('Found employees count:', employees.length);
     
@@ -1544,7 +1557,7 @@ app.post('/api/employees/bulk', async (req, res) => {
     const hireDateObj = parseFlexibleDate(emp.hire_date);
     if (emp.hire_date && !hireDateObj) {
       results.push({ success: false, emp, error: 'Format hire_date tidak valid (YYYY-MM-DD atau DD/MM/YYYY).'});
-      continue;
+        continue;
     }
     // Cari user berdasarkan email
     const user = await prisma.users.findFirst({ where: { email: emp.email } });
@@ -2150,7 +2163,7 @@ app.post('/api/payrolls', async (req, res) => {
 		} catch (guardErr) {
 			console.error('Error validating monthly uniqueness:', guardErr);
 			return res.status(500).json({ error: 'Gagal memvalidasi duplikasi bulanan' });
-		}
+    }
 
     // Server-side fallback calculation to ensure critical fields are populated
     const basicSalaryNumber = Number(basic_salary) || 0;
@@ -4040,14 +4053,14 @@ app.post('/api/salary/bulk-upload', async (req, res) => {
 
     for (const item of salaryData) {
       try {
-        const {
-          nik,
-          basic_salary,
-          position_allowance,
-          management_allowance,
-          phone_allowance,
-          incentive_allowance,
-          overtime_allowance
+        const { 
+          nik, 
+          basic_salary, 
+          position_allowance, 
+          management_allowance, 
+          phone_allowance, 
+          incentive_allowance, 
+          overtime_allowance 
         } = item;
 
         // Validate required fields: nik + basic_salary
