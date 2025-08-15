@@ -2567,6 +2567,17 @@ app.post('/api/payrolls/calculate', async (req, res) => {
       total_pendapatan: totalPendapatan             // Total yang benar: Pendapatan Tetap + Pendapatan Tidak Tetap
     };
 
+    // Tambahkan subtotal perusahaan/karyawan berbasis komponen yang dihitung
+    const subtotalCompanyFromCalculated = calculated
+      .filter((c: any) => c.type === 'income' && (c.category === 'bpjs' || String(c.name || '').includes('(Perusahaan)')))
+      .reduce((sum: number, c: any) => sum + (Number(c.amount) || 0), 0);
+
+    const subtotalEmployeeFromCalculated = calculated
+      .filter((c: any) => c.type === 'deduction' && (c.category === 'bpjs' || String(c.name || '').includes('(Karyawan)')))
+      .reduce((sum: number, c: any) => sum + (Number(c.amount) || 0), 0);
+
+    const totalPotonganForPdf = subtotalCompanyFromCalculated + subtotalEmployeeFromCalculated + totalManualDeduction;
+
     const response = {
       calculated_components: calculated,
       totals: {
@@ -2579,7 +2590,11 @@ app.post('/api/payrolls/calculate', async (req, res) => {
         // Breakdown pendapatan yang benar
         pendapatan_tetap: pendapatanTetap,           // Gaji Pokok + BPJS Company
         pendapatan_tidak_tetap: pendapatanTidakTetap, // Total Tunjangan
-        total_pendapatan: totalPendapatan             // Total yang benar: Pendapatan Tetap + Pendapatan Tidak Tetap
+        total_pendapatan: totalPendapatan,            // Total yang benar: Pendapatan Tetap + Pendapatan Tidak Tetap
+        // Tambahan untuk kebutuhan PDF/rekap
+        subtotal_company: subtotalCompanyFromCalculated,
+        subtotal_employee: subtotalEmployeeFromCalculated,
+        total_potongan_for_pdf: totalPotonganForPdf
       },
       pure_basic_salary: pureBasicSalary,
       breakdown_pendapatan: breakdownPendapatan
