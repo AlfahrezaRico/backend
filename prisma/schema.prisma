@@ -157,14 +157,11 @@ model payrolls {
   angsuran_kredit        Decimal? @db.Decimal(15, 2)
   
   // Total Deductions
-  total_deductions       Decimal? @db.Decimal(15, 2)
+  total_deductions_bpjs  Decimal? @db.Decimal(15, 2)
   total_deductions_manual Decimal? @db.Decimal(15, 2)
   
   // Total Pendapatan (Gaji + Tunjangan + BPJS Perusahaan)
   total_pendapatan       Decimal? @db.Decimal(15, 2)
-  
-  // Legacy field (untuk backward compatibility)
-  deductions             Decimal? @db.Decimal(15, 2)
   
   // Additional fields
   created_by             String?  @db.Uuid

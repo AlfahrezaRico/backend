@@ -1945,7 +1945,7 @@ const payrollSchema = z.object({
   angsuran_kredit: z.number().optional(),
   
   // Total Deductions
-  total_deductions: z.number().optional(),
+  total_deductions_bpjs: z.number().optional(),
   total_deductions_manual: z.number().optional(),
   
   // Total Pendapatan (Gaji + Tunjangan + BPJS Perusahaan)
@@ -1956,7 +1956,7 @@ const payrollSchema = z.object({
   bpjs_company: z.number().optional(),
   jkk: z.number().optional(),
   jkm: z.number().optional(),
-  deductions: z.number().optional(),
+
   
   // Additional fields
   created_by: z.string().uuid().optional(),
@@ -2096,8 +2096,8 @@ app.post('/api/payrolls', async (req, res) => {
       angsuran_kredit,
       
       // Total Deductions
-      total_deductions,
-      total_deductions_manual,
+          total_deductions_bpjs,
+    total_deductions_manual,
       
       // Total Pendapatan (Gaji + Tunjangan + BPJS Perusahaan)
       total_pendapatan,
@@ -2107,7 +2107,7 @@ app.post('/api/payrolls', async (req, res) => {
       bpjs_company,
       jkk,
       jkm,
-      deductions,
+
       
       // Additional fields
       created_by,
@@ -2219,8 +2219,8 @@ app.post('/api/payrolls', async (req, res) => {
     const resolved_total_pendapatan = parseFloat(total_pendapatan || 0) || (basicSalaryNumber + resolved_total_allowances + resolved_subtotal_company);
 
     const resolved_total_deductions_manual = parseFloat(total_deductions_manual || 0) || (parseFloat(kasbon || 0) + parseFloat(telat || 0) + parseFloat(angsuran_kredit || 0));
-    const resolved_total_deductions = parseFloat(total_deductions || 0) || (resolved_subtotal_employee + resolved_total_deductions_manual);
-    const resolved_deductions_legacy = parseFloat(deductions || 0) || resolved_total_deductions;
+    const resolved_total_deductions_bpjs = parseFloat(total_deductions_bpjs || 0) || (resolved_subtotal_company + resolved_subtotal_employee);
+    // Legacy deductions field removed
 
     const data = {
       employee_id,
@@ -2260,8 +2260,8 @@ app.post('/api/payrolls', async (req, res) => {
       angsuran_kredit: parseFloat(angsuran_kredit || 0),
       
       // Total Deductions
-      total_deductions: resolved_total_deductions,
-      total_deductions_manual: resolved_total_deductions_manual,
+              total_deductions_bpjs: resolved_total_deductions_bpjs,
+        total_deductions_manual: resolved_total_deductions_manual,
       
       // Total Pendapatan (Gaji + Tunjangan + BPJS Perusahaan)
       total_pendapatan: resolved_total_pendapatan,
@@ -2271,7 +2271,7 @@ app.post('/api/payrolls', async (req, res) => {
       bpjs_company: resolved_bpjs_company,
       jkk: parseFloat(jkk || 0) || resolved_jkk_company,
       jkm: parseFloat(jkm || 0) || resolved_jkm_company,
-      deductions: resolved_deductions_legacy,
+
       
       // Additional fields
       created_by: created_by || null,
