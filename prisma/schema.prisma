@@ -158,6 +158,7 @@ model payrolls {
   
   // Total Deductions
   total_deductions       Decimal? @db.Decimal(15, 2)
+  total_deductions_manual Decimal? @db.Decimal(15, 2)
   
   // Total Pendapatan (Gaji + Tunjangan + BPJS Perusahaan)
   total_pendapatan       Decimal? @db.Decimal(15, 2)

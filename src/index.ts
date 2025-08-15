@@ -1946,6 +1946,7 @@ const payrollSchema = z.object({
   
   // Total Deductions
   total_deductions: z.number().optional(),
+  total_deductions_manual: z.number().optional(),
   
   // Total Pendapatan (Gaji + Tunjangan + BPJS Perusahaan)
   total_pendapatan: z.number().optional(),
@@ -2096,6 +2097,7 @@ app.post('/api/payrolls', async (req, res) => {
       
       // Total Deductions
       total_deductions,
+      total_deductions_manual,
       
       // Total Pendapatan (Gaji + Tunjangan + BPJS Perusahaan)
       total_pendapatan,
@@ -2216,7 +2218,8 @@ app.post('/api/payrolls', async (req, res) => {
     const resolved_total_allowances = parseFloat(total_allowances || 0);
     const resolved_total_pendapatan = parseFloat(total_pendapatan || 0) || (basicSalaryNumber + resolved_total_allowances + resolved_subtotal_company);
 
-    const resolved_total_deductions = parseFloat(total_deductions || 0) || (resolved_subtotal_employee + parseFloat(kasbon || 0) + parseFloat(telat || 0) + parseFloat(angsuran_kredit || 0));
+    const resolved_total_deductions_manual = parseFloat(total_deductions_manual || 0) || (parseFloat(kasbon || 0) + parseFloat(telat || 0) + parseFloat(angsuran_kredit || 0));
+    const resolved_total_deductions = parseFloat(total_deductions || 0) || (resolved_subtotal_employee + resolved_total_deductions_manual);
     const resolved_deductions_legacy = parseFloat(deductions || 0) || resolved_total_deductions;
 
     const data = {
@@ -2258,6 +2261,7 @@ app.post('/api/payrolls', async (req, res) => {
       
       // Total Deductions
       total_deductions: resolved_total_deductions,
+      total_deductions_manual: resolved_total_deductions_manual,
       
       // Total Pendapatan (Gaji + Tunjangan + BPJS Perusahaan)
       total_pendapatan: resolved_total_pendapatan,
