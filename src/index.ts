@@ -2317,15 +2317,78 @@ app.post('/api/payrolls', async (req, res) => {
 // UPDATE payroll
 app.put('/api/payrolls/:id', async (req, res) => {
   const { id } = req.params;
+  console.log('Updating payroll with ID:', id);
+  console.log('Request body:', req.body);
+  
   const parseResult = payrollSchema.partial().safeParse(req.body);
   if (!parseResult.success) {
+    console.error('Validation error:', parseResult.error.errors);
     return res.status(400).json({ error: 'Data payroll tidak valid', details: parseResult.error.errors });
   }
+  
   try {
-    const payroll = await prisma.payrolls.update({ where: { id }, data: parseResult.data });
+    console.log('Validated data:', parseResult.data);
+    
+    // Check if payroll exists
+    const existingPayroll = await prisma.payrolls.findUnique({ where: { id } });
+    if (!existingPayroll) {
+      return res.status(404).json({ error: 'Payroll tidak ditemukan' });
+    }
+    
+    // Convert number fields to Decimal for Prisma
+    const updateData: any = { ...parseResult.data };
+    
+    // Convert numeric fields to Decimal
+    const numericFields = [
+      'basic_salary', 'gross_salary', 'net_salary',
+      'position_allowance', 'management_allowance', 'phone_allowance',
+      'incentive_allowance', 'overtime_allowance', 'total_allowances',
+      'bpjs_health_company', 'jht_company', 'jkk_company', 'jkm_company',
+      'jp_company', 'subtotal_company', 'bpjs_health_employee',
+      'jht_employee', 'jp_employee', 'subtotal_employee',
+      'kasbon', 'telat', 'angsuran_kredit',
+      'total_deductions_bpjs', 'total_deductions_manual', 'total_pendapatan',
+      'bpjs_employee', 'bpjs_company', 'jkk', 'jkm'
+    ];
+    
+    numericFields.forEach(field => {
+      if (updateData[field] !== undefined && updateData[field] !== null) {
+        // Convert to string for Decimal field
+        updateData[field] = updateData[field].toString();
+      }
+    });
+    
+    console.log('Converted update data:', updateData);
+    
+    const payroll = await prisma.payrolls.update({ 
+      where: { id }, 
+      data: updateData 
+    });
+    
+    console.log('Payroll updated successfully:', payroll);
     res.json(payroll);
-  } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
+  } catch (err: any) {
+    console.error('Error updating payroll:', err);
+    console.error('Error details:', {
+      message: err.message,
+      code: err.code,
+      meta: err.meta
+    });
+    
+    // Provide more specific error messages
+    if (err.code === 'P2002') {
+      res.status(400).json({ error: 'Data duplikat ditemukan' });
+    } else if (err.code === 'P2025') {
+      res.status(404).json({ error: 'Payroll tidak ditemukan' });
+    } else if (err.code === 'P2003') {
+      res.status(400).json({ error: 'Referensi data tidak valid' });
+    } else {
+      res.status(500).json({ 
+        error: 'Internal server error', 
+        details: err.message,
+        code: err.code 
+      });
+    }
   }
 });
 
