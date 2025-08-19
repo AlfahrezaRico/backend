@@ -2358,6 +2358,18 @@ app.put('/api/payrolls/:id', async (req, res) => {
       }
     });
     
+    // Convert date fields to proper DateTime format
+    const dateFields = ['pay_period_start', 'pay_period_end', 'payment_date'];
+    dateFields.forEach(field => {
+      if (updateData[field] !== undefined && updateData[field] !== null) {
+        // Convert date string to ISO DateTime format
+        const date = new Date(updateData[field]);
+        if (!isNaN(date.getTime())) {
+          updateData[field] = date.toISOString();
+        }
+      }
+    });
+    
     console.log('Converted update data:', updateData);
     
     const payroll = await prisma.payrolls.update({ 
