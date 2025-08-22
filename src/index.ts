@@ -4431,23 +4431,44 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
         let checkInTime: Date | null = null;
         let checkOutTime: Date | null = null;
 
+        const normalizeTime = (t: string | null | undefined): string | null => {
+          if (!t) return null;
+          let s = t.trim();
+          // Accept HH:mm or HH:mm:ss
+          if (/^\d{1,2}:\d{2}$/.test(s)) s = `${s}:00`;
+          // Zero-pad hour if needed
+          const [h, m, sec] = s.split(':');
+          const hh = h.length === 1 ? `0${h}` : h;
+          const mm = m ?? '00';
+          const ss = sec ?? '00';
+          return `${hh}:${mm}:${ss}`;
+        };
+
+        const OFFSET = '+07:00'; // WIB
+
         if (record.check_in_time) {
-          const time = new Date(`2000-01-01T${record.check_in_time}`);
-          if (!isNaN(time.getTime())) {
-            checkInTime = time;
-          } else {
-            results.errors.push({ row: i + 2, error: 'Format check_in_time tidak valid (HH:MM:SS)', data: record });
-            continue;
+          const nt = normalizeTime(record.check_in_time);
+          if (nt) {
+            const time = new Date(`2000-01-01T${nt}${OFFSET}`);
+            if (!isNaN(time.getTime())) {
+              checkInTime = time;
+            } else {
+              results.errors.push({ row: i + 2, error: 'Format check_in_time tidak valid (HH:MM[:SS])', data: record });
+              continue;
+            }
           }
         }
 
         if (record.check_out_time) {
-          const time = new Date(`2000-01-01T${record.check_out_time}`);
-          if (!isNaN(time.getTime())) {
-            checkOutTime = time;
-          } else {
-            results.errors.push({ row: i + 2, error: 'Format check_out_time tidak valid (HH:MM:SS)', data: record });
-            continue;
+          const nt = normalizeTime(record.check_out_time);
+          if (nt) {
+            const time = new Date(`2000-01-01T${nt}${OFFSET}`);
+            if (!isNaN(time.getTime())) {
+              checkOutTime = time;
+            } else {
+              results.errors.push({ row: i + 2, error: 'Format check_out_time tidak valid (HH:MM[:SS])', data: record });
+              continue;
+            }
           }
         }
 
