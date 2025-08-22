@@ -4351,11 +4351,11 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
       const record = records[i];
       
       try {
-        // Validate required fields (allow nik or employee_id)
-        if ((!record.employee_id && !record.nik) || !record.date) {
+        // Validate required fields (allow nik or employee_id) and require check_in_time & check_out_time
+        if ((!record.employee_id && !record.nik) || !record.date || !record.check_in_time || !record.check_out_time) {
           results.errors.push({
             row: i + 2, // +2 because we skip header and arrays are 0-indexed
-            error: 'nik atau employee_id dan date harus diisi',
+            error: 'nik/employee_id, date, check_in_time, check_out_time wajib diisi',
             data: record
           });
           continue;
@@ -4404,14 +4404,17 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
           continue;
         }
 
-        // Parse time fields
-        let checkInTime = null;
-        let checkOutTime = null;
+        // Parse time fields (required at this point)
+        let checkInTime: Date | null = null;
+        let checkOutTime: Date | null = null;
 
         if (record.check_in_time) {
           const time = new Date(`2000-01-01T${record.check_in_time}`);
           if (!isNaN(time.getTime())) {
             checkInTime = time;
+          } else {
+            results.errors.push({ row: i + 2, error: 'Format check_in_time tidak valid (HH:MM:SS)', data: record });
+            continue;
           }
         }
 
@@ -4419,6 +4422,23 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
           const time = new Date(`2000-01-01T${record.check_out_time}`);
           if (!isNaN(time.getTime())) {
             checkOutTime = time;
+          } else {
+            results.errors.push({ row: i + 2, error: 'Format check_out_time tidak valid (HH:MM:SS)', data: record });
+            continue;
+          }
+        }
+
+        // Compute status automatically based on check_in_time
+        let computedStatus: 'PRESENT' | 'LATE' | 'HALF_DAY' = 'PRESENT';
+        if (checkInTime) {
+          const hour = checkInTime.getHours();
+          const minute = checkInTime.getMinutes();
+          if (hour === 12 && minute === 0) {
+            computedStatus = 'HALF_DAY';
+          } else if (hour > 8 || (hour === 8 && minute > 0)) {
+            computedStatus = 'LATE';
+          } else {
+            computedStatus = 'PRESENT';
           }
         }
 
@@ -4437,7 +4457,7 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
             data: {
               check_in_time: checkInTime,
               check_out_time: checkOutTime,
-              status: record.status,
+              status: computedStatus,
               notes: record.notes
             }
           });
@@ -4449,7 +4469,7 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
               date: date,
               check_in_time: checkInTime,
               check_out_time: checkOutTime,
-              status: record.status,
+              status: computedStatus,
               notes: record.notes
             }
           });
