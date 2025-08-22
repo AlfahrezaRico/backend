@@ -4245,6 +4245,236 @@ app.post('/api/salary/bulk-upload', async (req, res) => {
   }
 });
 
+// Bulk upload attendance records
+app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'File tidak ditemukan' });
+    }
+
+    const { month } = req.body;
+    if (!month) {
+      return res.status(400).json({ error: 'Bulan harus diisi' });
+    }
+
+    // Parse the file based on its type (supporting both employee_id and nik headers)
+    let records: any[] = [];
+
+    if (req.file.mimetype === 'text/csv' || req.file.originalname.endsWith('.csv')) {
+      // Parse CSV with header mapping
+      const csvContent = req.file.buffer.toString('utf-8');
+      const lines = csvContent.split('\n').filter(line => line.trim());
+      if (lines.length > 0) {
+        const header = lines[0]
+          .split(',')
+          .map(v => v.trim().replace(/\"/g, '').toLowerCase());
+
+        const idx = {
+          employee_id: header.indexOf('employee_id'),
+          nik: header.indexOf('nik'),
+          date: header.indexOf('date'),
+          check_in_time: header.indexOf('check_in_time'),
+          check_out_time: header.indexOf('check_out_time'),
+          status: header.indexOf('status'),
+          notes: header.indexOf('notes')
+        };
+
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i]
+            .split(',')
+            .map(v => v.trim().replace(/"/g, ''));
+          if (values.length === 0) continue;
+
+          const record: any = {
+            employee_id: idx.employee_id >= 0 ? values[idx.employee_id] : undefined,
+            nik: idx.nik >= 0 ? values[idx.nik] : undefined,
+            date: idx.date >= 0 ? values[idx.date] : undefined,
+            check_in_time: idx.check_in_time >= 0 ? (values[idx.check_in_time] || null) : null,
+            check_out_time: idx.check_out_time >= 0 ? (values[idx.check_out_time] || null) : null,
+            status: idx.status >= 0 ? (values[idx.status] || 'PRESENT') : 'PRESENT',
+            notes: idx.notes >= 0 ? (values[idx.notes] || null) : null
+          };
+
+          records.push(record);
+        }
+      }
+    } else {
+      // Parse Excel file with header mapping
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+      if (jsonData.length > 0) {
+        const headerRow = (jsonData[0] as any[]).map(v => v?.toString()?.trim().toLowerCase());
+        const idx = {
+          employee_id: headerRow.indexOf('employee_id'),
+          nik: headerRow.indexOf('nik'),
+          date: headerRow.indexOf('date'),
+          check_in_time: headerRow.indexOf('check_in_time'),
+          check_out_time: headerRow.indexOf('check_out_time'),
+          status: headerRow.indexOf('status'),
+          notes: headerRow.indexOf('notes')
+        };
+
+        for (let i = 1; i < jsonData.length; i++) {
+          const row = jsonData[i] as any[];
+          if (!row) continue;
+
+          const record: any = {
+            employee_id: idx.employee_id >= 0 ? row[idx.employee_id]?.toString()?.trim() : undefined,
+            nik: idx.nik >= 0 ? row[idx.nik]?.toString()?.trim() : undefined,
+            date: idx.date >= 0 ? row[idx.date]?.toString()?.trim() : undefined,
+            check_in_time: idx.check_in_time >= 0 ? (row[idx.check_in_time]?.toString()?.trim() || null) : null,
+            check_out_time: idx.check_out_time >= 0 ? (row[idx.check_out_time]?.toString()?.trim() || null) : null,
+            status: idx.status >= 0 ? (row[idx.status]?.toString()?.trim() || 'PRESENT') : 'PRESENT',
+            notes: idx.notes >= 0 ? (row[idx.notes]?.toString()?.trim() || null) : null
+          };
+
+          records.push(record);
+        }
+      }
+    }
+
+    if (records.length === 0) {
+      return res.status(400).json({ error: 'Tidak ada data yang valid dalam file' });
+    }
+
+    // Validate and process records
+    const results = {
+      uploaded: 0,
+      errors: [] as any[],
+      total: records.length
+    };
+
+    for (let i = 0; i < records.length; i++) {
+      const record = records[i];
+      
+      try {
+        // Validate required fields (allow nik or employee_id)
+        if ((!record.employee_id && !record.nik) || !record.date) {
+          results.errors.push({
+            row: i + 2, // +2 because we skip header and arrays are 0-indexed
+            error: 'nik atau employee_id dan date harus diisi',
+            data: record
+          });
+          continue;
+        }
+
+        // Resolve employee by nik or id
+        let employee = null as any;
+        if (record.nik) {
+          employee = await prisma.employees.findFirst({
+            where: { nik: record.nik }
+          });
+        } else if (record.employee_id) {
+          employee = await prisma.employees.findUnique({
+            where: { id: record.employee_id }
+          });
+        }
+
+        if (!employee) {
+          results.errors.push({
+            row: i + 2,
+            error: 'Karyawan tidak ditemukan (cek NIK/employee_id)',
+            data: record
+          });
+          continue;
+        }
+
+        // Validate date format
+        const date = new Date(record.date);
+        if (isNaN(date.getTime())) {
+          results.errors.push({
+            row: i + 2,
+            error: 'Format tanggal tidak valid',
+            data: record
+          });
+          continue;
+        }
+
+        // Validate status
+        const validStatuses = ['PRESENT', 'ABSENT', 'LATE', 'HALF_DAY'];
+        if (record.status && !validStatuses.includes(record.status)) {
+          results.errors.push({
+            row: i + 2,
+            error: 'Status tidak valid',
+            data: record
+          });
+          continue;
+        }
+
+        // Parse time fields
+        let checkInTime = null;
+        let checkOutTime = null;
+
+        if (record.check_in_time) {
+          const time = new Date(`2000-01-01T${record.check_in_time}`);
+          if (!isNaN(time.getTime())) {
+            checkInTime = time;
+          }
+        }
+
+        if (record.check_out_time) {
+          const time = new Date(`2000-01-01T${record.check_out_time}`);
+          if (!isNaN(time.getTime())) {
+            checkOutTime = time;
+          }
+        }
+
+        // Check if attendance record already exists for this employee and date
+        const existingRecord = await prisma.attendance_records.findFirst({
+          where: {
+            employee_id: employee.id,
+            date: date
+          }
+        });
+
+        if (existingRecord) {
+          // Update existing record
+          await prisma.attendance_records.update({
+            where: { id: existingRecord.id },
+            data: {
+              check_in_time: checkInTime,
+              check_out_time: checkOutTime,
+              status: record.status,
+              notes: record.notes
+            }
+          });
+        } else {
+          // Create new record
+          await prisma.attendance_records.create({
+            data: {
+              employee_id: employee.id,
+              date: date,
+              check_in_time: checkInTime,
+              check_out_time: checkOutTime,
+              status: record.status,
+              notes: record.notes
+            }
+          });
+        }
+
+        results.uploaded++;
+      } catch (error: any) {
+        results.errors.push({
+          row: i + 2,
+          error: error.message || 'Error tidak diketahui',
+          data: record
+        });
+      }
+    }
+
+    res.json(results);
+  } catch (error: any) {
+    console.error('Error in bulk upload:', error);
+    res.status(500).json({ 
+      error: 'Internal server error', 
+      details: error.message 
+    });
+  }
+});
+
 app.listen(port, () => {
   console.log("Server running on port", port);
 });
