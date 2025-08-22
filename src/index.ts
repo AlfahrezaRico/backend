@@ -4567,3 +4567,18 @@ app.listen(port, () => {
   console.log("Server running on port", port);
 });
 
+// Update attendance notes
+app.put('/api/attendance-records', async (req, res) => {
+  try {
+    const { id, notes } = req.body as { id?: string; notes?: string };
+    if (!id) return res.status(400).json({ error: 'id is required' });
+    const updated = await prisma.attendance_records.update({
+      where: { id },
+      data: { notes: notes ?? null }
+    });
+    res.json(updated);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'Internal server error' });
+  }
+});
+
