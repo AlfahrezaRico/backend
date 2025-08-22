@@ -4573,12 +4573,21 @@ app.put('/api/attendance-records', async (req, res) => {
   try {
     const { id, notes } = req.body as { id?: string; notes?: string };
     if (!id) return res.status(400).json({ error: 'id is required' });
-    const updated = await prisma.attendance_records.update({
+
+    // Use raw SQL to avoid any prisma/trigger quirks
+    await prisma.$executeRawUnsafe(
+      'UPDATE attendance_records SET notes = $1 WHERE id = $2',
+      notes ?? null,
+      id
+    );
+
+    const updated = await prisma.attendance_records.findUnique({
       where: { id },
-      data: { notes: notes ?? null }
+      include: { employee: { include: { departemen: true, statusJenis: true } } }
     });
     res.json(updated);
   } catch (e: any) {
+    console.error('Update attendance note error:', e);
     res.status(500).json({ error: e.message || 'Internal server error' });
   }
 });
