@@ -4574,9 +4574,9 @@ app.put('/api/attendance-records', async (req, res) => {
     const { id, notes } = req.body as { id?: string; notes?: string };
     if (!id) return res.status(400).json({ error: 'id is required' });
 
-    // Use raw SQL to avoid any prisma/trigger quirks
+    // Use raw SQL and cast id to uuid to match column type
     await prisma.$executeRawUnsafe(
-      'UPDATE attendance_records SET notes = $1 WHERE id = $2',
+      'UPDATE attendance_records SET notes = $1 WHERE id = $2::uuid',
       notes ?? null,
       id
     );
