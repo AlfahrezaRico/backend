@@ -4428,65 +4428,51 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
           continue;
         }
 
-        // Parse time fields (required at this point)
-        let checkInTime: Date | null = null;
-        let checkOutTime: Date | null = null;
-
-        const normalizeTime = (t: string | null | undefined): string | null => {
-          if (!t) return null;
-          let s = t.trim();
-          // Accept HH:mm or HH:mm:ss
-          if (/^\d{1,2}:\d{2}$/.test(s)) s = `${s}:00`;
-          // Zero-pad hour if needed
-          const [h, m, sec] = s.split(':');
-          const hh = h.length === 1 ? `0${h}` : h;
-          const mm = m ?? '00';
-          const ss = sec ?? '00';
-          return `${hh}:${mm}:${ss}`;
+        // Helpers for time handling (store as plain text HH:MM:SS for @db.Time)
+        const pad2 = (n: number) => n.toString().padStart(2, '0');
+        const normalizeTimeString = (v: any): string | null => {
+          if (v === null || v === undefined) return null;
+          // Excel numeric time (fraction of day)
+          if (typeof v === 'number' && isFinite(v)) {
+            const totalSeconds = Math.round(v * 24 * 60 * 60);
+            const h = Math.floor(totalSeconds / 3600) % 24;
+            const m = Math.floor((totalSeconds % 3600) / 60);
+            const s = totalSeconds % 60;
+            return `${pad2(h)}:${pad2(m)}:${pad2(s)}`;
+          }
+          const s = String(v).trim();
+          if (!s) return null;
+          const m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+          if (m) {
+            const h = pad2(Number(m[1]));
+            const mm = pad2(Number(m[2]));
+            const ss = pad2(Number(m[3] ?? '0'));
+            return `${h}:${mm}:${ss}`;
+          }
+          // Fallback: try Date parsing (rare)
+          const d = new Date(s);
+          if (!isNaN(d.getTime())) {
+            const h = pad2(d.getHours());
+            const mm = pad2(d.getMinutes());
+            const ss = pad2(d.getSeconds());
+            return `${h}:${mm}:${ss}`;
+          }
+          return null;
         };
 
-        const OFFSET = '+07:00'; // WIB
-
-        if (record.check_in_time) {
-          const nt = normalizeTime(record.check_in_time);
-          if (nt) {
-            const time = new Date(`2000-01-01T${nt}${OFFSET}`);
-            if (!isNaN(time.getTime())) {
-              checkInTime = time;
-            } else {
-              results.errors.push({ row: i + 2, error: 'Format check_in_time tidak valid (HH:MM[:SS])', data: record });
-              continue;
-            }
-          }
-        }
-
-        if (record.check_out_time) {
-          const nt = normalizeTime(record.check_out_time);
-          if (nt) {
-            const time = new Date(`2000-01-01T${nt}${OFFSET}`);
-            if (!isNaN(time.getTime())) {
-              checkOutTime = time;
-            } else {
-              results.errors.push({ row: i + 2, error: 'Format check_out_time tidak valid (HH:MM[:SS])', data: record });
-              continue;
-            }
-          }
-        }
+        // Parse time fields as strings
+        const checkInStr = normalizeTimeString(record.check_in_time);
+        const checkOutStr = normalizeTimeString(record.check_out_time);
 
         // Compute status automatically based on check_in_time using parsed HH:mm
         let computedStatus: 'PRESENT' | 'LATE' | 'HALF_DAY' = 'PRESENT';
-        const getHM = (t: string | null | undefined): {h:number,m:number}|null => {
-          if (!t) return null;
-          const nt = normalizeTime(t);
-          if (!nt) return null;
-          const [hh, mm] = nt.split(':');
-          return { h: Number(hh), m: Number(mm) };
-        };
-        const hm = getHM(record.check_in_time);
-        if (hm) {
-          if (hm.h === 12 && hm.m === 0) {
+        if (checkInStr) {
+          const [hhStr, mmStr] = checkInStr.split(':');
+          const h = Number(hhStr);
+          const m = Number(mmStr);
+          if (h === 12 && m === 0) {
             computedStatus = 'HALF_DAY';
-          } else if (hm.h > 8 || (hm.h === 8 && hm.m > 0)) {
+          } else if (h > 8 || (h === 8 && m > 0)) {
             computedStatus = 'LATE';
           } else {
             computedStatus = 'PRESENT';
@@ -4507,8 +4493,8 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
             await prisma.attendance_records.update({
               where: { id: existingRecord.id },
               data: {
-                check_in_time: checkInTime,
-                check_out_time: checkOutTime,
+                check_in_time: checkInStr,
+                check_out_time: checkOutStr,
                 status: computedStatus,
                 notes: record.notes
               }
@@ -4519,8 +4505,8 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
                 data: {
                   employee_id: employee.id,
                   date: date,
-                  check_in_time: checkInTime,
-                  check_out_time: checkOutTime,
+                  check_in_time: checkInStr,
+                  check_out_time: checkOutStr,
                   status: computedStatus,
                   notes: record.notes
                 }
@@ -4536,8 +4522,8 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
             data: {
               employee_id: employee.id,
               date: date,
-              check_in_time: checkInTime,
-              check_out_time: checkOutTime,
+              check_in_time: checkInStr,
+              check_out_time: checkOutStr,
               status: computedStatus,
               notes: record.notes
             }
