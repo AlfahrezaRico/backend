@@ -4428,48 +4428,52 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
           continue;
         }
 
-        // Helpers for time handling (store as plain text HH:MM:SS for @db.Time)
+        // Helpers for time handling (convert to DateTime for @db.Time)
         const pad2 = (n: number) => n.toString().padStart(2, '0');
-        const normalizeTimeString = (v: any): string | null => {
+        const normalizeTimeToDateTime = (v: any): Date | null => {
           if (v === null || v === undefined) return null;
+          
           // Excel numeric time (fraction of day)
           if (typeof v === 'number' && isFinite(v)) {
             const totalSeconds = Math.round(v * 24 * 60 * 60);
             const h = Math.floor(totalSeconds / 3600) % 24;
             const m = Math.floor((totalSeconds % 3600) / 60);
             const s = totalSeconds % 60;
-            return `${pad2(h)}:${pad2(m)}:${pad2(s)}`;
+            // Create Date object with time only (year 2000 as base)
+            return new Date(2000, 0, 1, h, m, s);
           }
+          
           const s = String(v).trim();
           if (!s) return null;
+          
+          // Parse HH:MM:SS format
           const m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
           if (m) {
-            const h = pad2(Number(m[1]));
-            const mm = pad2(Number(m[2]));
-            const ss = pad2(Number(m[3] ?? '0'));
-            return `${h}:${mm}:${ss}`;
+            const h = Number(m[1]);
+            const mm = Number(m[2]);
+            const ss = Number(m[3] ?? '0');
+            // Create Date object with time only (year 2000 as base)
+            return new Date(2000, 0, 1, h, mm, ss);
           }
-          // Fallback: try Date parsing (rare)
+          
+          // Fallback: try Date parsing
           const d = new Date(s);
           if (!isNaN(d.getTime())) {
-            const h = pad2(d.getHours());
-            const mm = pad2(d.getMinutes());
-            const ss = pad2(d.getSeconds());
-            return `${h}:${mm}:${ss}`;
+            return d;
           }
+          
           return null;
         };
 
-        // Parse time fields as strings
-        const checkInStr = normalizeTimeString(record.check_in_time);
-        const checkOutStr = normalizeTimeString(record.check_out_time);
+        // Parse time fields as DateTime objects
+        const checkInTime = normalizeTimeToDateTime(record.check_in_time);
+        const checkOutTime = normalizeTimeToDateTime(record.check_out_time);
 
         // Compute status automatically based on check_in_time using parsed HH:mm
         let computedStatus: 'PRESENT' | 'LATE' | 'HALF_DAY' = 'PRESENT';
-        if (checkInStr) {
-          const [hhStr, mmStr] = checkInStr.split(':');
-          const h = Number(hhStr);
-          const m = Number(mmStr);
+        if (checkInTime) {
+          const h = checkInTime.getHours();
+          const m = checkInTime.getMinutes();
           if (h === 12 && m === 0) {
             computedStatus = 'HALF_DAY';
           } else if (h > 8 || (h === 8 && m > 0)) {
@@ -4493,8 +4497,8 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
             await prisma.attendance_records.update({
               where: { id: existingRecord.id },
               data: {
-                check_in_time: checkInStr,
-                check_out_time: checkOutStr,
+                check_in_time: checkInTime,
+                check_out_time: checkOutTime,
                 status: computedStatus,
                 notes: record.notes
               }
@@ -4505,8 +4509,8 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
                 data: {
                   employee_id: employee.id,
                   date: date,
-                  check_in_time: checkInStr,
-                  check_out_time: checkOutStr,
+                  check_in_time: checkInTime,
+                  check_out_time: checkOutTime,
                   status: computedStatus,
                   notes: record.notes
                 }
@@ -4522,8 +4526,8 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
             data: {
               employee_id: employee.id,
               date: date,
-              check_in_time: checkInStr,
-              check_out_time: checkOutStr,
+              check_in_time: checkInTime,
+              check_out_time: checkOutTime,
               status: computedStatus,
               notes: record.notes
             }

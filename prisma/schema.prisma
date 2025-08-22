@@ -76,8 +76,8 @@ model attendance_records {
   created_at     DateTime? @default(now()) @db.Timestamptz(6)
   employee_id    String    @db.Uuid
   date           DateTime  @db.Date
-  check_in_time  DateTime? @db.Timestamptz(6)
-  check_out_time DateTime? @db.Timestamptz(6)
+  check_in_time  DateTime? @db.Time
+  check_out_time DateTime? @db.Time
   status         String    @db.VarChar(50)
   notes          String?
   employee       employees @relation(fields: [employee_id], references: [id])
