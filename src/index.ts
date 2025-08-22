@@ -1852,17 +1852,18 @@ app.get('/api/attendance-records', async (req, res) => {
       const dateOnly = String(date).length > 10 ? String(date).slice(0, 10) : String(date);
       where = { ...where, date: new Date(dateOnly) };
     }
+    const employeeInclude = { include: { departemen: true, statusJenis: true } } as const;
     if (employee_id && date) {
       // Return satu record (absensi hari ini)
-      const record = await prisma.attendance_records.findFirst({ where, include: { employee: true } });
+      const record = await prisma.attendance_records.findFirst({ where, include: { employee: employeeInclude } });
       return res.json(record);
     } else if (employee_id) {
       // Return semua absensi karyawan
-      const records = await prisma.attendance_records.findMany({ where, include: { employee: true } });
+      const records = await prisma.attendance_records.findMany({ where, include: { employee: employeeInclude } });
       return res.json(records);
     } else {
       // Return semua absensi
-      const records = await prisma.attendance_records.findMany({ include: { employee: true } });
+      const records = await prisma.attendance_records.findMany({ include: { employee: employeeInclude } });
       return res.json(records);
     }
   } catch (err) {
