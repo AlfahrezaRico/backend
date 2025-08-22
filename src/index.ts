@@ -4472,14 +4472,20 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
           }
         }
 
-        // Compute status automatically based on check_in_time
+        // Compute status automatically based on check_in_time using parsed HH:mm
         let computedStatus: 'PRESENT' | 'LATE' | 'HALF_DAY' = 'PRESENT';
-        if (checkInTime) {
-          const hour = checkInTime.getHours();
-          const minute = checkInTime.getMinutes();
-          if (hour === 12 && minute === 0) {
+        const getHM = (t: string | null | undefined): {h:number,m:number}|null => {
+          if (!t) return null;
+          const nt = normalizeTime(t);
+          if (!nt) return null;
+          const [hh, mm] = nt.split(':');
+          return { h: Number(hh), m: Number(mm) };
+        };
+        const hm = getHM(record.check_in_time);
+        if (hm) {
+          if (hm.h === 12 && hm.m === 0) {
             computedStatus = 'HALF_DAY';
-          } else if (hour > 8 || (hour === 8 && minute > 0)) {
+          } else if (hm.h > 8 || (hm.h === 8 && hm.m > 0)) {
             computedStatus = 'LATE';
           } else {
             computedStatus = 'PRESENT';
@@ -4495,16 +4501,34 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
         });
 
         if (existingRecord) {
-          // Update existing record
-          await prisma.attendance_records.update({
-            where: { id: existingRecord.id },
-            data: {
-              check_in_time: checkInTime,
-              check_out_time: checkOutTime,
-              status: computedStatus,
-              notes: record.notes
+          // Update existing record (fallback to create if update fails)
+          try {
+            await prisma.attendance_records.update({
+              where: { id: existingRecord.id },
+              data: {
+                check_in_time: checkInTime,
+                check_out_time: checkOutTime,
+                status: computedStatus,
+                notes: record.notes
+              }
+            });
+          } catch (e: any) {
+            try {
+              await prisma.attendance_records.create({
+                data: {
+                  employee_id: employee.id,
+                  date: date,
+                  check_in_time: checkInTime,
+                  check_out_time: checkOutTime,
+                  status: computedStatus,
+                  notes: record.notes
+                }
+              });
+            } catch (e2: any) {
+              results.errors.push({ row: i + 2, error: 'Gagal menyimpan data (duplikat/validasi).', data: record });
+              continue;
             }
-          });
+          }
         } else {
           // Create new record
           await prisma.attendance_records.create({
