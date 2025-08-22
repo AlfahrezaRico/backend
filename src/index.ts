@@ -4261,13 +4261,19 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
     let records: any[] = [];
 
     if (req.file.mimetype === 'text/csv' || req.file.originalname.endsWith('.csv')) {
-      // Parse CSV with header mapping
-      const csvContent = req.file.buffer.toString('utf-8');
-      const lines = csvContent.split('\n').filter(line => line.trim());
+      // Parse CSV with header mapping (supports comma, semicolon, or tab delimiter)
+      const csvContentRaw = req.file.buffer.toString('utf-8').replace(/^\uFEFF/, ''); // strip BOM
+      const lines = csvContentRaw.split(/\r?\n/).filter(line => line.trim().length > 0);
       if (lines.length > 0) {
-        const header = lines[0]
-          .split(',')
-          .map(v => v.trim().replace(/\"/g, '').toLowerCase());
+        const firstLine = lines[0];
+        const commaCount = (firstLine.match(/,/g) || []).length;
+        const semicolonCount = (firstLine.match(/;/g) || []).length;
+        const tabCount = (firstLine.match(/\t/g) || []).length;
+        const delimiter = semicolonCount > commaCount ? ';' : (tabCount > commaCount ? '\t' : ',');
+
+        const header = firstLine
+          .split(delimiter)
+          .map(v => v.trim().replace(/^["']|["']$/g, '').toLowerCase());
 
         const idx = {
           employee_id: header.indexOf('employee_id'),
@@ -4281,8 +4287,8 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
 
         for (let i = 1; i < lines.length; i++) {
           const values = lines[i]
-            .split(',')
-            .map(v => v.trim().replace(/"/g, ''));
+            .split(delimiter)
+            .map(v => v.trim().replace(/^["']|["']$/g, ''));
           if (values.length === 0) continue;
 
           const record: any = {
@@ -4300,13 +4306,14 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
       }
     } else {
       // Parse Excel file with header mapping
-      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellText:false, cellDates:true });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
       const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
       if (jsonData.length > 0) {
-        const headerRow = (jsonData[0] as any[]).map(v => v?.toString()?.trim().toLowerCase());
+        // Normalize header values; Excel might deliver Date objects for dates/time cells
+        const headerRow = (jsonData[0] as any[]).map(v => (v ?? '')?.toString()?.trim().toLowerCase());
         const idx = {
           employee_id: headerRow.indexOf('employee_id'),
           nik: headerRow.indexOf('nik'),
@@ -4321,14 +4328,30 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
           const row = jsonData[i] as any[];
           if (!row) continue;
 
+          const raw = {
+            employee_id: idx.employee_id >= 0 ? row[idx.employee_id] : undefined,
+            nik: idx.nik >= 0 ? row[idx.nik] : undefined,
+            date: idx.date >= 0 ? row[idx.date] : undefined,
+            check_in_time: idx.check_in_time >= 0 ? row[idx.check_in_time] : undefined,
+            check_out_time: idx.check_out_time >= 0 ? row[idx.check_out_time] : undefined,
+            status: idx.status >= 0 ? row[idx.status] : undefined,
+            notes: idx.notes >= 0 ? row[idx.notes] : undefined
+          } as any;
+
+          const normalize = (v: any) => {
+            if (v === null || v === undefined) return undefined;
+            if (v instanceof Date) return v.toISOString();
+            return v.toString().trim();
+          };
+
           const record: any = {
-            employee_id: idx.employee_id >= 0 ? row[idx.employee_id]?.toString()?.trim() : undefined,
-            nik: idx.nik >= 0 ? row[idx.nik]?.toString()?.trim() : undefined,
-            date: idx.date >= 0 ? row[idx.date]?.toString()?.trim() : undefined,
-            check_in_time: idx.check_in_time >= 0 ? (row[idx.check_in_time]?.toString()?.trim() || null) : null,
-            check_out_time: idx.check_out_time >= 0 ? (row[idx.check_out_time]?.toString()?.trim() || null) : null,
-            status: idx.status >= 0 ? (row[idx.status]?.toString()?.trim() || 'PRESENT') : 'PRESENT',
-            notes: idx.notes >= 0 ? (row[idx.notes]?.toString()?.trim() || null) : null
+            employee_id: normalize(raw.employee_id),
+            nik: normalize(raw.nik),
+            date: normalize(raw.date),
+            check_in_time: normalize(raw.check_in_time) || null,
+            check_out_time: normalize(raw.check_out_time) || null,
+            status: (normalize(raw.status) || 'PRESENT'),
+            notes: normalize(raw.notes) || null
           };
 
           records.push(record);
