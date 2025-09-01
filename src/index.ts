@@ -1164,6 +1164,7 @@ app.put('/api/leave-requests/:id', async (req, res) => {
     notes: z.string().optional(),
     rejection_reason: z.string().optional(),
     approved_by: z.string().uuid().optional(),
+    approved_at: z.string().optional(),
     rejected_by: z.string().uuid().optional(),
     rejected_at: z.string().optional()
   });
@@ -1180,9 +1181,12 @@ app.put('/api/leave-requests/:id', async (req, res) => {
     // Ambil leave request lama
     const oldRequest = await prisma.leave_requests.findUnique({ where: { id } });
     if (!oldRequest) throw new Error('Leave request not found');
-    // Jika approve, simpan approved_by
+    // Jika approve, simpan approved_by dan approved_at
     if (updateData.status === 'APPROVED' && !updateData.approved_by) {
       updateData.approved_by = req.body.approver_id || req.headers['x-user-id'] || null;
+    }
+    if (updateData.status === 'APPROVED' && !updateData.approved_at) {
+      updateData.approved_at = new Date().toISOString();
     }
     // Jika reject, simpan rejected_by
     if (updateData.status === 'REJECTED' && !updateData.rejected_by) {
@@ -1191,7 +1195,7 @@ app.put('/api/leave-requests/:id', async (req, res) => {
     }
     // Filter hanya field yang boleh diupdate
     const allowedFields = [
-      'status', 'approved_by', 'rejected_by', 'rejection_reason', 'rejected_at', 'notes'
+      'status', 'approved_by', 'approved_at', 'rejected_by', 'rejection_reason', 'rejected_at', 'notes'
     ];
     const filteredUpdateData = Object.fromEntries(
       Object.entries(updateData).filter(([key, value]) => allowedFields.includes(key) && value !== undefined)
@@ -1199,6 +1203,9 @@ app.put('/api/leave-requests/:id', async (req, res) => {
     // Update kolom approved_by/rejected_by jika perlu
     if (updateData.status === 'APPROVED' && !filteredUpdateData.approved_by) {
       filteredUpdateData.approved_by = req.body.approver_id || req.headers['x-user-id'] || null;
+    }
+    if (updateData.status === 'APPROVED' && !filteredUpdateData.approved_at) {
+      filteredUpdateData.approved_at = new Date().toISOString();
     }
     if (updateData.status === 'REJECTED' && !filteredUpdateData.rejected_by) {
       filteredUpdateData.rejected_by = req.body.rejector_id || req.headers['x-user-id'] || null;

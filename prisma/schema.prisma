@@ -106,6 +106,7 @@ model leave_requests {
   status           String    @default("PENDING") @db.VarChar(50)
   requested_date   DateTime  @default(now()) @db.Date
   approved_by      String?   @db.Uuid
+  approved_at      DateTime? @db.Timestamptz(6)
   rejection_reason String?
   rejected_by      String?   @db.Uuid
   rejected_at      DateTime? @db.Timestamptz(6)
