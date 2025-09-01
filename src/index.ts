@@ -457,6 +457,19 @@ app.post('/api/auth/lucia-logout', async (req, res) => {
   res.status(204).end();
 });
 
+// === Employee Status Endpoints ===
+app.get('/api/employee-status', async (req, res) => {
+  try {
+    const statusList = await prisma.jenis_status_employees.findMany({
+      orderBy: { name: 'asc' }
+    });
+    res.json(statusList);
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : 'Internal server error';
+    res.status(500).json({ error: errorMsg });
+  }
+});
+
 // === Employees Endpoints ===
 app.get('/api/employees', async (req, res) => {
   try {
@@ -581,6 +594,37 @@ app.get('/api/employees', async (req, res) => {
             departemen: (employees[0] as any).departemen
           });
         }
+        
+        // Tambahkan label status kontrak untuk semua employees
+        try {
+          const statusIds = [...new Set(employees.map(emp => emp.status_employees).filter((id): id is string => id !== null))];
+          console.log('Status IDs to fetch:', statusIds);
+          
+          if (statusIds.length > 0) {
+            const statusList = await prisma.jenis_status_employees.findMany({
+              where: { id: { in: statusIds } }
+            });
+            
+            const statusMap = new Map(statusList.map((status: any) => [status.id, status]));
+            
+            employees.forEach(emp => {
+              if (emp.status_employees) {
+                (emp as any).status_label = statusMap.get(emp.status_employees)?.name || null;
+              } else {
+                (emp as any).status_label = null;
+              }
+            });
+          } else {
+            employees.forEach(emp => {
+              (emp as any).status_label = null;
+            });
+          }
+        } catch (statusError) {
+          console.error('Error fetching status data:', statusError);
+          employees.forEach(emp => {
+            (emp as any).status_label = null;
+          });
+        }
       } catch (deptError) {
         console.error('Error fetching departemen data:', deptError);
         // Jika gagal fetch departemen, tetap return employees tanpa departemen
@@ -588,20 +632,37 @@ app.get('/api/employees', async (req, res) => {
           (emp as any).departemen = null;
         });
       }
-    }
-    // Tambahkan label status kontrak untuk seluruh employees
-    try {
-      const statusIds = [...new Set(employees.map((e: any) => e.status_employees).filter((id: any) => id))];
-      if (statusIds.length > 0) {
-        const statusRows = await (prisma as any).jenis_status_employees.findMany({ where: { id: { in: statusIds } } });
-        const statusMap = new Map(statusRows.map((s: any) => [s.id, s.name]));
-        employees.forEach((e: any) => {
-          e.status_label = e.status_employees ? statusMap.get(e.status_employees) || null : null;
+    } else {
+      // Jika tidak include departemen, tetap tambahkan status_label
+      try {
+        const statusIds = [...new Set(employees.map(emp => emp.status_employees).filter((id): id is string => id !== null))];
+        
+        if (statusIds.length > 0) {
+          const statusList = await prisma.jenis_status_employees.findMany({
+            where: { id: { in: statusIds } }
+          });
+          
+          const statusMap = new Map(statusList.map((status: any) => [status.id, status]));
+          
+          employees.forEach(emp => {
+            if (emp.status_employees) {
+              (emp as any).status_label = statusMap.get(emp.status_employees)?.name || null;
+            } else {
+              (emp as any).status_label = null;
+            }
+          });
+        } else {
+          employees.forEach(emp => {
+            (emp as any).status_label = null;
+          });
+        }
+      } catch (statusError) {
+        console.error('Error fetching status data:', statusError);
+        employees.forEach(emp => {
+          (emp as any).status_label = null;
         });
-      } else {
-        employees.forEach((e: any) => { (e as any).status_label = null; });
       }
-    } catch {}
+    }
     
     console.log('First employee sample:', employees[0] ? {
       id: employees[0].id,
@@ -760,6 +821,7 @@ app.put('/api/employees/:id', async (req, res) => {
     bank_name: z.string().min(1).optional(),
     user_id: z.string().uuid().optional(),
     departemen_id: z.string().uuid().optional(),
+    status_employees: z.string().uuid().optional(),
     nik: z.string().optional()
   });
   if (!idSchema.safeParse(req.params.id).success) {
