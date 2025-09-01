@@ -862,6 +862,22 @@ app.delete('/api/employees/:id', async (req, res) => {
   }
 });
 
+// Helper function to calculate working time in minutes
+const calculateWorkingTime = (checkInTime: Date | null, checkOutTime: Date | null): number | null => {
+  if (!checkInTime || !checkOutTime) {
+    return null;
+  }
+  
+  // Calculate difference in milliseconds
+  const diffMs = checkOutTime.getTime() - checkInTime.getTime();
+  
+  // Convert to minutes
+  const diffMinutes = Math.round(diffMs / (1000 * 60));
+  
+  // Return null if negative (invalid time range)
+  return diffMinutes >= 0 ? diffMinutes : null;
+};
+
 // Helper function to calculate leave duration excluding weekends (Saturday and Sunday)
 const calculateLeaveDuration = (startDate: Date, endDate: Date): number => {
   if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
@@ -4784,6 +4800,9 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
         const checkInTime = normalizeTimeToDateTime(record.check_in_time);
         const checkOutTime = normalizeTimeToDateTime(record.check_out_time);
 
+        // Calculate working time in minutes
+        const workingTime = calculateWorkingTime(checkInTime, checkOutTime);
+
         // Compute status automatically based on check_in_time using parsed HH:mm
         let computedStatus: 'PRESENT' | 'LATE' | 'HALF_DAY' = 'PRESENT';
         if (checkInTime) {
@@ -4814,6 +4833,7 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
               data: {
                 check_in_time: checkInTime,
                 check_out_time: checkOutTime,
+                working_time: workingTime,
                 status: computedStatus,
                 notes: record.notes
               }
@@ -4843,6 +4863,7 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
               date: date,
               check_in_time: checkInTime,
               check_out_time: checkOutTime,
+              working_time: workingTime,
               status: computedStatus,
               notes: record.notes
             }
@@ -4871,6 +4892,77 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
 
 app.listen(port, () => {
   console.log("Server running on port", port);
+});
+
+// Create attendance record
+app.post('/api/attendance-records', async (req, res) => {
+  try {
+    const { employee_id, date, check_in_time, check_out_time, notes } = req.body;
+    
+    if (!employee_id || !date || !check_in_time || !check_out_time) {
+      return res.status(400).json({ error: 'employee_id, date, check_in_time, check_out_time wajib diisi' });
+    }
+
+    // Parse and validate date
+    const attendanceDate = new Date(date);
+    if (isNaN(attendanceDate.getTime())) {
+      return res.status(400).json({ error: 'Format tanggal tidak valid' });
+    }
+
+    // Parse time fields
+    const checkInTime = new Date(`2000-01-01T${check_in_time}`);
+    const checkOutTime = new Date(`2000-01-01T${check_out_time}`);
+    
+    if (isNaN(checkInTime.getTime()) || isNaN(checkOutTime.getTime())) {
+      return res.status(400).json({ error: 'Format waktu tidak valid (gunakan HH:MM:SS)' });
+    }
+
+    // Calculate working time
+    const workingTime = calculateWorkingTime(checkInTime, checkOutTime);
+
+    // Compute status automatically
+    let computedStatus: 'PRESENT' | 'LATE' | 'HALF_DAY' = 'PRESENT';
+    const h = checkInTime.getHours();
+    const m = checkInTime.getMinutes();
+    if (h === 12 && m === 0) {
+      computedStatus = 'HALF_DAY';
+    } else if (h > 8 || (h === 8 && m > 0)) {
+      computedStatus = 'LATE';
+    } else {
+      computedStatus = 'PRESENT';
+    }
+
+    // Check if record already exists
+    const existingRecord = await prisma.attendance_records.findFirst({
+      where: {
+        employee_id,
+        date: attendanceDate
+      }
+    });
+
+    if (existingRecord) {
+      return res.status(400).json({ error: 'Record absensi untuk tanggal ini sudah ada' });
+    }
+
+    // Create new record
+    const record = await prisma.attendance_records.create({
+      data: {
+        employee_id,
+        date: attendanceDate,
+        check_in_time: checkInTime,
+        check_out_time: checkOutTime,
+        working_time: workingTime,
+        status: computedStatus,
+        notes: notes || null
+      },
+      include: { employee: { include: { departemen: true, statusJenis: true } } }
+    });
+
+    res.status(201).json(record);
+  } catch (error: any) {
+    console.error('Create attendance error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
 });
 
 // Update attendance notes
