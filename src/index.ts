@@ -1983,9 +1983,12 @@ app.get('/api/attendance-records', async (req, res) => {
     // Helper function to format time to HH:MM:SS string
     const formatTimeToString = (time: Date | null): string | null => {
       if (!time) return null;
-      const hours = time.getHours().toString().padStart(2, '0');
-      const minutes = time.getMinutes().toString().padStart(2, '0');
-      const seconds = time.getSeconds().toString().padStart(2, '0');
+      
+      // Handle timezone issues by using UTC methods
+      const hours = time.getUTCHours().toString().padStart(2, '0');
+      const minutes = time.getUTCMinutes().toString().padStart(2, '0');
+      const seconds = time.getUTCSeconds().toString().padStart(2, '0');
+      
       return `${hours}:${minutes}:${seconds}`;
     };
     
@@ -2042,9 +2045,12 @@ app.get('/api/test-attendance-format', async (req, res) => {
     
     const formatTimeToString = (time: Date | null): string | null => {
       if (!time) return null;
-      const hours = time.getHours().toString().padStart(2, '0');
-      const minutes = time.getMinutes().toString().padStart(2, '0');
-      const seconds = time.getSeconds().toString().padStart(2, '0');
+      
+      // Handle timezone issues by using UTC methods
+      const hours = time.getUTCHours().toString().padStart(2, '0');
+      const minutes = time.getUTCMinutes().toString().padStart(2, '0');
+      const seconds = time.getUTCSeconds().toString().padStart(2, '0');
+      
       return `${hours}:${minutes}:${seconds}`;
     };
     
@@ -4096,9 +4102,12 @@ app.post('/api/export/:type', async (req, res) => {
         // Helper function to format time to HH:MM:SS string
         const formatTimeToString = (time: Date | null): string => {
           if (!time) return '-';
-          const hours = time.getHours().toString().padStart(2, '0');
-          const minutes = time.getMinutes().toString().padStart(2, '0');
-          const seconds = time.getSeconds().toString().padStart(2, '0');
+          
+          // Handle timezone issues by using UTC methods
+          const hours = time.getUTCHours().toString().padStart(2, '0');
+          const minutes = time.getUTCMinutes().toString().padStart(2, '0');
+          const seconds = time.getUTCSeconds().toString().padStart(2, '0');
+          
           return `${hours}:${minutes}:${seconds}`;
         };
         
@@ -4773,8 +4782,8 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
             const h = Math.floor(totalSeconds / 3600) % 24;
             const m = Math.floor((totalSeconds % 3600) / 60);
             const s = totalSeconds % 60;
-            // Create Date object with time only (year 2000 as base)
-            return new Date(2000, 0, 1, h, m, s);
+            // Create Date object with time only (year 2000 as base) - use UTC to avoid timezone issues
+            return new Date(Date.UTC(2000, 0, 1, h, m, s));
           }
           
           const s = String(v).trim();
@@ -4786,8 +4795,8 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
             const h = Number(m[1]);
             const mm = Number(m[2]);
             const ss = Number(m[3] ?? '0');
-            // Create Date object with time only (year 2000 as base)
-            return new Date(2000, 0, 1, h, mm, ss);
+            // Create Date object with time only (year 2000 as base) - use UTC to avoid timezone issues
+            return new Date(Date.UTC(2000, 0, 1, h, mm, ss));
           }
           
           // Fallback: try Date parsing
@@ -5011,6 +5020,89 @@ app.put('/api/attendance-records', async (req, res) => {
   } catch (e: any) {
     console.error('Update attendance note error:', e);
     res.status(500).json({ error: e.message || 'Internal server error' });
+  }
+});
+
+// Debug endpoint untuk melihat data waktu mentah
+app.get('/api/debug-time-format', async (req, res) => {
+  try {
+    const records = await prisma.attendance_records.findMany({
+      take: 5,
+      include: { employee: true },
+      orderBy: { date: 'desc' }
+    });
+    
+    const debugData = records.map(record => ({
+      id: record.id,
+      employee_name: record.employee ? `${record.employee.first_name} ${record.employee.last_name}` : 'Unknown',
+      date: record.date,
+      check_in_time: {
+        raw: record.check_in_time,
+        raw_type: typeof record.check_in_time,
+        raw_string: record.check_in_time?.toString(),
+        hours: record.check_in_time?.getHours(),
+        minutes: record.check_in_time?.getMinutes(),
+        seconds: record.check_in_time?.getSeconds(),
+        toISOString: record.check_in_time?.toISOString(),
+        toTimeString: record.check_in_time?.toTimeString()
+      },
+      check_out_time: {
+        raw: record.check_out_time,
+        raw_type: typeof record.check_out_time,
+        raw_string: record.check_out_time?.toString(),
+        hours: record.check_out_time?.getHours(),
+        minutes: record.check_out_time?.getMinutes(),
+        seconds: record.check_out_time?.getSeconds(),
+        toISOString: record.check_out_time?.toISOString(),
+        toTimeString: record.check_out_time?.toTimeString()
+      },
+      working_time: (record as any).working_time,
+      status: record.status
+    }));
+    
+    res.json({
+      message: 'Debug time format',
+      data: debugData,
+      total_records: records.length
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// Test endpoint untuk memverifikasi format waktu
+app.get('/api/test-time-format', async (req, res) => {
+  try {
+    // Test dengan waktu yang kita tahu seharusnya 17:10:00
+    const testTime = new Date(Date.UTC(2000, 0, 1, 17, 10, 0));
+    
+    const formatTimeToString = (time: Date | null): string | null => {
+      if (!time) return null;
+      
+      // Handle timezone issues by using UTC methods
+      const hours = time.getUTCHours().toString().padStart(2, '0');
+      const minutes = time.getUTCMinutes().toString().padStart(2, '0');
+      const seconds = time.getUTCSeconds().toString().padStart(2, '0');
+      
+      return `${hours}:${minutes}:${seconds}`;
+    };
+    
+    res.json({
+      message: 'Test time format',
+      test_time: {
+        raw: testTime,
+        raw_string: testTime.toString(),
+        hours: testTime.getHours(),
+        minutes: testTime.getMinutes(),
+        seconds: testTime.getSeconds(),
+        utc_hours: testTime.getUTCHours(),
+        utc_minutes: testTime.getUTCMinutes(),
+        utc_seconds: testTime.getUTCSeconds(),
+        formatted: formatTimeToString(testTime)
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
   }
 });
 
