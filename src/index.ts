@@ -1993,12 +1993,13 @@ app.get('/api/attendance-records', async (req, res) => {
       // Return satu record (absensi hari ini)
       const record = await prisma.attendance_records.findFirst({ where, include: { employee: employeeInclude } });
       if (record) {
-        // Format time fields to HH:MM:SS strings
-        const formattedRecord = {
-          ...record,
-          check_in_time: formatTimeToString(record.check_in_time),
-          check_out_time: formatTimeToString(record.check_out_time)
-        };
+              // Format time fields to HH:MM:SS strings
+      const formattedRecord = {
+        ...record,
+        check_in_time: formatTimeToString(record.check_in_time),
+        check_out_time: formatTimeToString(record.check_out_time),
+        working_time: (record as any).working_time
+      };
         return res.json(formattedRecord);
       }
       return res.json(null);
@@ -2009,7 +2010,8 @@ app.get('/api/attendance-records', async (req, res) => {
       const formattedRecords = records.map(record => ({
         ...record,
         check_in_time: formatTimeToString(record.check_in_time),
-        check_out_time: formatTimeToString(record.check_out_time)
+        check_out_time: formatTimeToString(record.check_out_time),
+        working_time: (record as any).working_time
       }));
       return res.json(formattedRecords);
     } else {
@@ -2019,7 +2021,8 @@ app.get('/api/attendance-records', async (req, res) => {
       const formattedRecords = records.map(record => ({
         ...record,
         check_in_time: formatTimeToString(record.check_in_time),
-        check_out_time: formatTimeToString(record.check_out_time)
+        check_out_time: formatTimeToString(record.check_out_time),
+        working_time: (record as any).working_time
       }));
       return res.json(formattedRecords);
     }
@@ -4833,11 +4836,18 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
               data: {
                 check_in_time: checkInTime,
                 check_out_time: checkOutTime,
-                working_time: workingTime,
                 status: computedStatus,
                 notes: record.notes
               }
             });
+            // Update working_time separately using raw SQL
+            if (workingTime !== null) {
+              await prisma.$executeRawUnsafe(
+                'UPDATE attendance_records SET working_time = $1 WHERE id = $2::uuid',
+                workingTime,
+                existingRecord.id
+              );
+            }
           } catch (e: any) {
             try {
               await prisma.attendance_records.create({
@@ -4857,17 +4867,24 @@ app.post('/api/attendance/bulk-upload', upload.single('file'), async (req, res) 
           }
         } else {
           // Create new record
-          await prisma.attendance_records.create({
+          const newRecord = await prisma.attendance_records.create({
             data: {
               employee_id: employee.id,
               date: date,
               check_in_time: checkInTime,
               check_out_time: checkOutTime,
-              working_time: workingTime,
               status: computedStatus,
               notes: record.notes
             }
           });
+          // Update working_time separately using raw SQL
+          if (workingTime !== null) {
+            await prisma.$executeRawUnsafe(
+              'UPDATE attendance_records SET working_time = $1 WHERE id = $2::uuid',
+              workingTime,
+              newRecord.id
+            );
+          }
         }
 
         results.uploaded++;
@@ -4951,12 +4968,20 @@ app.post('/api/attendance-records', async (req, res) => {
         date: attendanceDate,
         check_in_time: checkInTime,
         check_out_time: checkOutTime,
-        working_time: workingTime,
         status: computedStatus,
         notes: notes || null
       },
       include: { employee: { include: { departemen: true, statusJenis: true } } }
     });
+    
+    // Update working_time separately using raw SQL
+    if (workingTime !== null) {
+      await prisma.$executeRawUnsafe(
+        'UPDATE attendance_records SET working_time = $1 WHERE id = $2::uuid',
+        workingTime,
+        record.id
+      );
+    }
 
     res.status(201).json(record);
   } catch (error: any) {

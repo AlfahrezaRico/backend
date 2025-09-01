@@ -78,7 +78,7 @@ model attendance_records {
   date           DateTime  @db.Date
   check_in_time  DateTime? @db.Time
   check_out_time DateTime? @db.Time
-  working_time   Int?      @db.Int8
+  working_time   Int?
   status         String    @db.VarChar(50)
   notes          String?
   employee       employees @relation(fields: [employee_id], references: [id])
