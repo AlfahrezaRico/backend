@@ -800,6 +800,38 @@ app.delete('/api/employees/:id', async (req, res) => {
   }
 });
 
+// Helper function to calculate leave duration excluding weekends (Saturday and Sunday)
+const calculateLeaveDuration = (startDate: Date, endDate: Date): number => {
+  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+    return 0;
+  }
+  
+  // Ensure start date is before or equal to end date
+  if (startDate > endDate) {
+    return 0;
+  }
+  
+  let workDays = 0;
+  const currentDate = new Date(startDate);
+  
+  // Set time to 00:00:00 to avoid timezone issues
+  currentDate.setHours(0, 0, 0, 0);
+  
+  while (currentDate <= endDate) {
+    const dayOfWeek = currentDate.getDay(); // 0 = Sunday, 6 = Saturday
+    
+    // Only count weekdays (Monday = 1, Tuesday = 2, ..., Friday = 5)
+    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+      workDays++;
+    }
+    
+    // Move to next day
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
+  return workDays;
+};
+
 // === Leave Requests Endpoints ===
 app.get('/api/leave-requests', async (req, res) => {
   try {
@@ -834,7 +866,14 @@ app.get('/api/leave-requests', async (req, res) => {
       },
       orderBy: { created_at: 'desc' }
     });
-    res.json(leaveRequests);
+    
+    // Tambahkan durasi ke setiap leave request
+    const leaveRequestsWithDuration = leaveRequests.map(request => ({
+      ...request,
+      duration: calculateLeaveDuration(new Date(request.start_date), new Date(request.end_date))
+    }));
+    
+    res.json(leaveRequestsWithDuration);
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'Internal server error';
     res.status(500).json({ error: errorMsg });
@@ -886,7 +925,8 @@ app.get('/api/notifications/rejected-leaves', async (req, res) => {
       ...leaveRequests.map(req => ({
         ...req,
         request_type: 'leave',
-        leave_type: req.leave_type || 'Cuti'
+        leave_type: req.leave_type || 'Cuti',
+        duration: calculateLeaveDuration(new Date(req.start_date), new Date(req.end_date))
       })),
       ...izinRequests.map(req => ({
         ...req,
@@ -896,6 +936,7 @@ app.get('/api/notifications/rejected-leaves', async (req, res) => {
         reason: req.alasan || 'Tidak ada alasan',
         start_date: req.tanggal || req.created_at,
         end_date: req.tanggal || req.created_at,
+        duration: 1, // Izin/sakit biasanya 1 hari
         approvedByUser: { first_name: 'HRD' }, // Placeholder
         rejectedByUser: { first_name: 'HRD' } // Placeholder
       }))
@@ -1081,8 +1122,8 @@ app.post('/api/leave-requests', async (req, res) => {
     // Jika quota habis, hanya izinkan cuti Sakit/selain Tahunan
     const year = start.getFullYear();
     const quota = await prisma.leave_quotas.findFirst({ where: { employee_id: employee.id, year, quota_type: 'tahunan' } });
-    // Hitung jumlah hari cuti
-    const days = Math.ceil((end.getTime() - start.getTime()) / (1000*60*60*24)) + 1;
+    // Hitung jumlah hari cuti (tidak termasuk Sabtu dan Minggu)
+    const days = calculateLeaveDuration(start, end);
     if (quota && quota.total_quota - quota.used_quota < days && leave_type.toLowerCase() === 'tahunan') {
       return res.status(400).json({ error: 'Quota cuti tahunan tidak mencukupi.' });
     }
@@ -1177,10 +1218,10 @@ app.put('/api/leave-requests/:id', async (req, res) => {
     });
     // Jika status berubah jadi APPROVED dan reason bukan Sakit, update used_quota
     if (updateData.status === 'APPROVED' && oldRequest.status !== 'APPROVED' && oldRequest.reason !== 'Sakit') {
-      // Hitung jumlah hari cuti
+      // Hitung jumlah hari cuti (tidak termasuk Sabtu dan Minggu)
       const start = new Date(oldRequest.start_date);
       const end = new Date(oldRequest.end_date);
-      const duration = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      const duration = calculateLeaveDuration(start, end);
       // Ambil tahun dan quota_type
       const year = start.getFullYear();
       const quota_type = 'tahunan'; // Bisa dikembangkan sesuai leave_type
@@ -1853,22 +1894,218 @@ app.get('/api/attendance-records', async (req, res) => {
       where = { ...where, date: new Date(dateOnly) };
     }
     const employeeInclude = { include: { departemen: true, statusJenis: true } } as const;
+    
+    // Helper function to format time to HH:MM:SS string
+    const formatTimeToString = (time: Date | null): string | null => {
+      if (!time) return null;
+      const hours = time.getHours().toString().padStart(2, '0');
+      const minutes = time.getMinutes().toString().padStart(2, '0');
+      const seconds = time.getSeconds().toString().padStart(2, '0');
+      return `${hours}:${minutes}:${seconds}`;
+    };
+    
     if (employee_id && date) {
       // Return satu record (absensi hari ini)
       const record = await prisma.attendance_records.findFirst({ where, include: { employee: employeeInclude } });
-      return res.json(record);
+      if (record) {
+        // Format time fields to HH:MM:SS strings
+        const formattedRecord = {
+          ...record,
+          check_in_time: formatTimeToString(record.check_in_time),
+          check_out_time: formatTimeToString(record.check_out_time)
+        };
+        return res.json(formattedRecord);
+      }
+      return res.json(null);
     } else if (employee_id) {
       // Return semua absensi karyawan
       const records = await prisma.attendance_records.findMany({ where, include: { employee: employeeInclude } });
-      return res.json(records);
+      // Format time fields to HH:MM:SS strings
+      const formattedRecords = records.map(record => ({
+        ...record,
+        check_in_time: formatTimeToString(record.check_in_time),
+        check_out_time: formatTimeToString(record.check_out_time)
+      }));
+      return res.json(formattedRecords);
     } else {
       // Return semua absensi
       const records = await prisma.attendance_records.findMany({ include: { employee: employeeInclude } });
-      return res.json(records);
+      // Format time fields to HH:MM:SS strings
+      const formattedRecords = records.map(record => ({
+        ...record,
+        check_in_time: formatTimeToString(record.check_in_time),
+        check_out_time: formatTimeToString(record.check_out_time)
+      }));
+      return res.json(formattedRecords);
     }
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'Internal server error';
     res.status(500).json({ error: errorMsg });
+  }
+});
+
+// Test endpoint untuk debugging
+app.get('/api/test-attendance-format', async (req, res) => {
+  try {
+    const records = await prisma.attendance_records.findMany({
+      take: 5,
+      include: { employee: true }
+    });
+    
+    const formatTimeToString = (time: Date | null): string | null => {
+      if (!time) return null;
+      const hours = time.getHours().toString().padStart(2, '0');
+      const minutes = time.getMinutes().toString().padStart(2, '0');
+      const seconds = time.getSeconds().toString().padStart(2, '0');
+      return `${hours}:${minutes}:${seconds}`;
+    };
+    
+    const testData = records.map(record => ({
+      id: record.id,
+      employee_name: record.employee ? `${record.employee.first_name} ${record.employee.last_name}` : 'Unknown',
+      date: record.date,
+      check_in_time_raw: record.check_in_time,
+      check_in_time_formatted: formatTimeToString(record.check_in_time),
+      check_out_time_raw: record.check_out_time,
+      check_out_time_formatted: formatTimeToString(record.check_out_time),
+      status: record.status
+    }));
+    
+    res.json({
+      message: 'Test attendance format',
+      data: testData,
+      total_records: records.length
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// Test endpoint untuk melihat data mentah dari database
+app.get('/api/debug-attendance-raw', async (req, res) => {
+  try {
+    const { employee_id } = req.query;
+    let where = {};
+    
+    if (employee_id) {
+      where = { employee_id: String(employee_id) };
+    }
+    
+    const records = await prisma.attendance_records.findMany({
+      where,
+      take: 10,
+      include: { employee: true },
+      orderBy: { date: 'desc' }
+    });
+    
+    const debugData = records.map(record => ({
+      id: record.id,
+      employee_name: record.employee ? `${record.employee.first_name} ${record.employee.last_name}` : 'Unknown',
+      employee_id: record.employee_id,
+      date: {
+        raw: record.date,
+        raw_type: typeof record.date,
+        raw_string: record.date?.toString(),
+        iso_string: record.date?.toISOString(),
+        year: record.date?.getFullYear(),
+        month: record.date?.getMonth() + 1, // JavaScript months are 0-indexed
+        day: record.date?.getDate(),
+        month_year: record.date ? `${record.date.getFullYear()}-${String(record.date.getMonth() + 1).padStart(2, '0')}` : null
+      },
+      check_in_time: {
+        raw: record.check_in_time,
+        raw_type: typeof record.check_in_time,
+        raw_string: record.check_in_time?.toString(),
+        hours: record.check_in_time?.getHours(),
+        minutes: record.check_in_time?.getMinutes(),
+        seconds: record.check_in_time?.getSeconds()
+      },
+      check_out_time: {
+        raw: record.check_out_time,
+        raw_type: typeof record.check_out_time,
+        raw_string: record.check_out_time?.toString(),
+        hours: record.check_out_time?.getHours(),
+        minutes: record.check_out_time?.getMinutes(),
+        seconds: record.check_out_time?.getSeconds()
+      },
+      status: record.status
+    }));
+    
+    res.json({
+      message: 'Debug attendance raw data',
+      data: debugData,
+      total_records: records.length,
+      query_params: req.query
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// Endpoint untuk memperbaiki data attendance yang bermasalah
+app.post('/api/fix-attendance-timezone', async (req, res) => {
+  try {
+    const records = await prisma.attendance_records.findMany({
+      where: {
+        OR: [
+          { check_in_time: { not: null } },
+          { check_out_time: { not: null } }
+        ]
+      }
+    });
+    
+    let fixedCount = 0;
+    const errors = [];
+    
+    for (const record of records) {
+      try {
+        // Helper function untuk memperbaiki waktu
+        const fixTime = (time: Date | null): Date | null => {
+          if (!time) return null;
+          
+          // Jika waktu menunjukkan jam yang tidak masuk akal (lebih dari 12 jam), 
+          // kemungkinan ada masalah timezone
+          const hours = time.getHours();
+          if (hours >= 12) {
+            // Kurangi 7 jam untuk memperbaiki timezone
+            const fixedTime = new Date(time);
+            fixedTime.setHours(hours - 7);
+            return fixedTime;
+          }
+          
+          return time;
+        };
+        
+        const fixedCheckIn = fixTime(record.check_in_time);
+        const fixedCheckOut = fixTime(record.check_out_time);
+        
+        // Update record jika ada perubahan
+        if (fixedCheckIn !== record.check_in_time || fixedCheckOut !== record.check_out_time) {
+          await prisma.attendance_records.update({
+            where: { id: record.id },
+            data: {
+              check_in_time: fixedCheckIn,
+              check_out_time: fixedCheckOut
+            }
+          });
+          fixedCount++;
+        }
+      } catch (error) {
+        errors.push({
+          recordId: record.id,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }
+    
+    res.json({
+      message: 'Timezone fix completed',
+      fixed_records: fixedCount,
+      total_records: records.length,
+      errors: errors
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
   }
 });
 
@@ -3768,14 +4005,23 @@ app.post('/api/export/:type', async (req, res) => {
           orderBy: { date: 'desc' }
         });
         
+        // Helper function to format time to HH:MM:SS string
+        const formatTimeToString = (time: Date | null): string => {
+          if (!time) return '-';
+          const hours = time.getHours().toString().padStart(2, '0');
+          const minutes = time.getMinutes().toString().padStart(2, '0');
+          const seconds = time.getSeconds().toString().padStart(2, '0');
+          return `${hours}:${minutes}:${seconds}`;
+        };
+        
         // Transform data for Excel
         const attendanceReportData = attendanceData.map(att => ({
           'NIK': att.employee?.nik || '-',
           'Nama': att.employee ? `${att.employee.first_name} ${att.employee.last_name}` : '-',
           'Departemen': att.employee?.departemen?.nama || '-',
           'Tanggal': att.date ? new Date(att.date).toLocaleDateString('id-ID') : '-',
-          'Check In': att.check_in_time ? new Date(att.check_in_time).toLocaleTimeString('id-ID') : '-',
-          'Check Out': att.check_out_time ? new Date(att.check_out_time).toLocaleTimeString('id-ID') : '-',
+          'Check In': formatTimeToString(att.check_in_time),
+          'Check Out': formatTimeToString(att.check_out_time),
           'Status': att.status || '-',
           'Notes': att.notes || '-'
         }));
